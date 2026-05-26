@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Atualizando Sistema - Mechanic Raiz Pro</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0E1B2A;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.card{background:#162A3E;border-radius:16px;padding:40px 32px;max-width:420px;width:100%;text-align:center;border:1px solid rgba(255,255,255,.1)}
+h1{font-size:1.5rem;margin:16px 0 8px}
+p{color:#94a3b8;font-size:.95rem;margin:8px 0}
+.spinner{width:64px;height:64px;border:4px solid rgba(255,255,255,.1);border-top-color:#00A8E8;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ok{color:#10b981;font-size:64px}
+.err{color:#f59e0b;font-size:64px}
+.btn{display:block;width:100%;padding:14px;margin-top:16px;background:#0077B6;color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer}
+.btn:active{opacity:.8}
+.log{text-align:left;background:rgba(0,0,0,.3);border-radius:8px;padding:12px;margin-top:16px;font-family:monospace;font-size:.75rem;color:#94a3b8;max-height:200px;overflow:auto}
+.hidden{display:none}
+.warn{color:#f59e0b;font-size:.85rem;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="loading">
+    <div class="spinner"></div>
+    <h1>Atualizando o sistema...</h1>
+    <p>Limpando cache e dados antigos. Aguarde...</p>
+  </div>
+  <div id="success" class="hidden">
+    <div class="ok">✅</div>
+    <h1>Sistema atualizado!</h1>
+    <p>Tudo limpo! Redirecionando em instantes...</p>
+    <p class="warn">⚠️ Você precisará fazer login novamente.</p>
+    <button class="btn" onclick="goHome()">Ir para o sistema</button>
+  </div>
+  <div id="error" class="hidden">
+    <div class="err">⚠️</div>
+    <h1>Erro na limpeza</h1>
+    <p>Tente limpar manualmente: Configurações do navegador → Dados de sites → Limpar</p>
+    <button class="btn" onclick="goHome()">Tentar acessar mesmo assim</button>
+  </div>
+  <div id="logBox" class="log hidden"></div>
+</div>
+<script>
+(function(){
+  var log=document.getElementById('logBox');
+  function addLog(t){log.classList.remove('hidden');log.innerHTML+=t+'<br>';}
+  function goHomeDelay(){setTimeout(function(){window.location.replace('/?_bust='+Date.now());},2500);}
+  window.goHome=function(){window.location.replace('/?_bust='+Date.now());};
+
+  async function run(){
+    try{
+      // 1. Desregistrar todos os Service Workers
+      if('serviceWorker' in navigator){
+        var regs=await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(function(r){return r.unregister();}));
+        addLog('✅ '+regs.length+' service worker(s) removido(s)');
+      }else{addLog('ℹ️ SW não suportado');}
+
+      // 2. Limpar TODOS os caches do browser
+      if('caches' in window){
+        var keys=await caches.keys();
+        await Promise.all(keys.map(function(k){return caches.delete(k);}));
+        addLog('✅ '+keys.length+' cache(s) limpo(s)');
+      }
+
+      // 3. Limpar TODO o localStorage (sem preservação parcial — força relogin limpo)
+      try{
+        var count=localStorage.length;
+        localStorage.clear();
+        addLog('✅ '+count+' itens do localStorage removidos');
+      }catch(e){addLog('⚠️ Erro ao limpar localStorage');}
+
+      // 4. Limpar sessionStorage
+      try{sessionStorage.clear();addLog('✅ sessionStorage limpo');}catch(e){}
+
+      // 5. Limpar IndexedDB (Supabase e outros)
+      try{
+        if(window.indexedDB){
+          var dbs=await window.indexedDB.databases();
+          dbs.forEach(function(db){
+            if(db.name) window.indexedDB.deleteDatabase(db.name);
+          });
+          addLog('✅ '+dbs.length+' IndexedDB(s) removido(s)');
+        }
+      }catch(e){addLog('ℹ️ IndexedDB: '+(e.message||'não disponível'));}
+
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('success').classList.remove('hidden');
+      goHomeDelay();
+    }catch(err){
+      addLog('❌ Erro: '+(err.message||err));
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('error').classList.remove('hidden');
+    }
+  }
+  run();
+})();
+</script>
+</body>
+</html>

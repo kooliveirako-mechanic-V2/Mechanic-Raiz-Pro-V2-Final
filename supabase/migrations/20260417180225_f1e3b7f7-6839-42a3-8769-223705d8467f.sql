@@ -1,0 +1,1 @@
+ALTER TABLE public.clientes DISABLE TRIGGER trg_rate_limit_clientes_insert;

@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="pt-BR"><!-- rebuild-trigger-v1 -->
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <!-- Primary SEO Meta Tags -->
+    <title>Sistema para Oficinas Mecânicas | Mechanic Raiz Pro</title>
+    <meta name="title" content="Sistema para Oficina Mecânica | Mechanic Raiz Pro" />
+    <meta name="description" content="Crie ordem de serviço em minutos, envie orçamento pelo WhatsApp e acompanhe financeiro, estoque e lucro da oficina. Use no celular, tablet ou computador. Teste grátis.">
+    <meta name="author" content="Mechanic Raiz Pro" />
+    <meta name="keywords" content="sistema para oficina mecânica, sistema para oficina mecânica pelo celular, app para mecânico, ordem de serviço para oficina, orçamento para oficina pelo WhatsApp, sistema para oficina de moto, sistema para auto elétrica, gestão oficina celular, controle financeiro oficina">
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://mechanicraizpro.com.br" />
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#0077B6" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Mechanic Raiz Pro" />
+    
+    <!-- PWA Icons -->
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://mechanicraizpro.com.br" />
+    
+    
+    <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/1DvHJbIdzFfH8NMDeJldgptONMi2/social-images/social-1776484700955-ChatGPT_Image_19_de_jan._de_2026,_19_35_29.webp">
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="Mechanic Raiz Pro" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://mechanicraizpro.com.br" />
+    
+    
+    <meta name="twitter:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/1DvHJbIdzFfH8NMDeJldgptONMi2/social-images/social-1776484700955-ChatGPT_Image_19_de_jan._de_2026,_19_35_29.webp">
+
+    <!-- Prevent phone number detection -->
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-MQH8GDJN');</script>
+
+    <!-- [Fase A] gtag.js direto REMOVIDO.
+         Motivo: duplicava hits do GA4 (G-DXWDVBQ1TK) e Google Ads (AW-17892212693)
+         que já são disparados pelas tags nativas do GTM (GTM-MQH8GDJN).
+         Resultado anterior: 2x PageView no GA4 e 2x page_view no Ads em cada carga.
+         A partir de agora, GA4 e Ads são configurados EXCLUSIVAMENTE via GTM.
+         Stub mínimo abaixo mantido só para não quebrar legados que chamem window.gtag(...). -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = window.gtag || function(){ window.dataLayer.push(arguments); };
+    </script>
+
+    <!-- [Fase 1b] Listener global de tracking REMOVIDO.
+         Motivo: disparava generate_lead em QUALQUER form da aplicação (inclusive
+         forms internos pós-login), poluindo GA4/Ads com leads falsos. A partir
+         de agora, lead_created e contact_whatsapp saem APENAS de trackEvent()
+         em src/lib/tracking.ts, com event_id deduplicado entre Pixel e CAPI. -->
+
+    <!-- [Fase 1c] Bloco antigo de SPA page_view (pushState + gtag) REMOVIDO.
+         Motivo: causava duplicação com o Pixel/CAPI e não usava event_id.
+         A partir de agora, page_view SPA-aware sai de trackEvent('page_view')
+         no ScrollToTop.tsx, com dataLayer + Pixel + MOCapi deduplicados. -->
+
+
+    <!-- Meta Pixel Code – Mechanic Raiz (ID: 904555945615995) -->
+    <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)
+    }(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    // [Fase E] Desliga AUTO-EVENTS do Meta (autoConfig=false) ANTES do init.
+    // Motivo: o auto-config injetava eventos como "SubscribeButtonClick" / "ButtonClick"
+    // automaticamente em qualquer botão com texto tipo "Assinar/Começar/Entrar",
+    // gerando disparos sem event_id (não dedupáveis) e conflitando com select_plan/contact.
+    // Agora SÓ disparam os eventos que NÓS controlamos via trackEvent().
+    fbq('set', 'autoConfig', 'false', '904555945615995');
+    fbq('init', '904555945615995');
+    // [Fase A] fbq('track','PageView') REMOVIDO daqui.
+    // PageView vem APENAS de (1) capi-client.js (1ª carga) e (2) trackEvent('page_view')
+    // do ScrollToTop.tsx em navegações SPA — ambos com event_id deduplicado.
+    </script>
+
+    <!-- Marketing Oracle CAPI client (oficial) — Fase 6b: tracking_context automático server-side -->
+    <script
+      src="https://marketing-tracking.lovable.app/capi-client.js"
+      data-endpoint="https://marketing-tracking.lovable.app"
+      data-leads-secret="62c2f59aadb240819048fafa90ab60c8"
+      defer
+    ></script>
+
+    <!-- UTM Persistence: salva UTMs/click IDs no localStorage na 1ª visita -->
+    <script>
+    (function(){
+      try {
+        var KEYS = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','fbclid','gclid','campaign_id','adset_id','ad_id','placement'];
+        var STORAGE_KEY = 'mrp_utms';
+        var qs = new URLSearchParams(window.location.search);
+        var current = {};
+        var hasAny = false;
+        KEYS.forEach(function(k){
+          var v = qs.get(k);
+          if (v) { current[k] = v; hasAny = true; }
+        });
+        // utm_slug: vem do parâmetro `mo` (shortlink Marketing Oracle).
+        // Validação: 3-32 chars, apenas [a-z0-9] (case-insensitive), normalizado p/ lowercase.
+        var moRaw = qs.get('mo');
+        var slug = '';
+        if (moRaw) {
+          var s = String(moRaw).trim().toLowerCase();
+          if (/^[a-z0-9]{3,32}$/.test(s)) slug = s;
+        }
+        if (slug) { current.utm_slug = slug; hasAny = true; }
+        if (hasAny) {
+          var stored = {};
+          try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e){}
+          // first-touch: só sobrescreve se não havia nada antes
+          var merged = Object.keys(stored).length ? stored : current;
+          // sempre atualiza click IDs (last-touch para fbclid/gclid)
+          if (current.fbclid) merged.fbclid = current.fbclid;
+          if (current.gclid) merged.gclid = current.gclid;
+          // utm_slug: preserva o primeiro; só grava se ainda não havia
+          if (slug && !merged.utm_slug) merged.utm_slug = slug;
+          merged._ts = merged._ts || Date.now();
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        }
+        // Helper global para reanexar UTMs em CTAs/forms
+        window.MRP_getUTMs = function(){
+          try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e){ return {}; }
+        };
+
+        // === INJEÇÃO NO _mocapi_attr ===
+        // O capi-client.js (defer) lê e SOBRESCREVE sessionStorage._mocapi_attr
+        // na inicialização dele, descartando utm_slug. Por isso fazemos o merge
+        // em DUAS fases: (1) imediato — caso capi-client ainda nao tenha rodado,
+        // (2) repetido após DOMContentLoaded/load + retries, garantindo que
+        // nosso utm_slug sobreviva à inicialização do capi-client.
+        var ATTR_KEY = '_mocapi_attr';
+        var ATTR_KEYS = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','utm_slug','fbclid','gclid','campaign_id','adset_id','ad_id','placement'];
+        function mergeMocapiAttr(){
+          try {
+            var persisted = {};
+            try { persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e){}
+            var attr = {};
+            try { attr = JSON.parse(sessionStorage.getItem(ATTR_KEY) || '{}'); } catch(e){}
+            var changed = false;
+            ATTR_KEYS.forEach(function(k){
+              var v = qs.get(k);
+              if (!v && k === 'utm_slug') v = slug;
+              if (!v) v = persisted[k];
+              if (v && attr[k] !== v) { attr[k] = v; changed = true; }
+            });
+            if (changed) {
+              try { sessionStorage.setItem(ATTR_KEY, JSON.stringify(attr)); } catch(e){}
+            }
+          } catch(e){}
+        }
+        // fase 1: imediato
+        mergeMocapiAttr();
+        // fase 2: após DOM/load + retries (capi-client é defer)
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', mergeMocapiAttr);
+        }
+        window.addEventListener('load', mergeMocapiAttr);
+        // fase 3: retries curtos pra cobrir a inicialização assíncrona do capi-client
+        setTimeout(mergeMocapiAttr, 300);
+        setTimeout(mergeMocapiAttr, 1000);
+        setTimeout(mergeMocapiAttr, 2500);
+      } catch(e){}
+    })();
+    </script>
+
+    <!-- Security Headers via Meta Tags -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <!-- Preconnect to external resources -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Early cache-bust: força nova versão antes do React montar -->
+    <script>
+    (function(){
+      try {
+        if (!('serviceWorker' in navigator)) return;
+        // CRITICAL: Never cache-bust on auth recovery flows — would strip
+        // the hash fragment (#access_token=…) and break password reset.
+        var _h = window.location.hash || '';
+        var _s = window.location.search || '';
+        if (_h.indexOf('access_token') !== -1 || _h.indexOf('type=recovery') !== -1 ||
+            _s.indexOf('type=recovery') !== -1 || _s.indexOf('code=') !== -1 ||
+            window.location.pathname === '/reset-password') {
+          return;
+        }
+        var BUST_KEY = 'mechanic_cache_busted_build';
+        var RELOAD_FLAG = 'mechanic_cache_bust_reloaded';
+        fetch('/version.json?ts=' + Date.now(), { cache: 'no-store' })
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(v){
+            if (!v || !v.build_id) return;
+            var last = localStorage.getItem(BUST_KEY);
+            if (last === v.build_id) { sessionStorage.removeItem(RELOAD_FLAG); return; }
+            if (sessionStorage.getItem(RELOAD_FLAG)) return; // evita loop
+            sessionStorage.setItem(RELOAD_FLAG, '1');
+            localStorage.setItem(BUST_KEY, v.build_id);
+            Promise.all([
+              navigator.serviceWorker.getRegistrations().then(function(regs){
+                return Promise.all(regs.map(function(r){ return r.unregister(); }));
+              }),
+              ('caches' in window) ? caches.keys().then(function(keys){
+                return Promise.all(keys.map(function(k){ return caches.delete(k); }));
+              }) : Promise.resolve()
+            ]).then(function(){
+              // Preserve existing query and hash so deep links/tokens survive
+              var sep = _s ? (_s.indexOf('_b=') === -1 ? (_s + '&') : _s) : '?';
+              if (sep === '?') sep = '?';
+              var qs = _s
+                ? (_s.indexOf('_b=') === -1 ? _s + '&_b=' + v.build_id : _s)
+                : '?_b=' + v.build_id;
+              location.replace(location.pathname + qs + _h);
+            });
+          })
+          .catch(function(){});
+      } catch(e) {}
+    })();
+    </script>
+    
+    <!-- JSON-LD: Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Mechanic Raiz Pro",
+      "url": "https://mechanicraizpro.com.br",
+      "description": "Sistema de gestão para oficinas mecânicas de carro, moto e auto elétrica."
+    }
+    </script>
+
+    <!-- JSON-LD: SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Mechanic Raiz Pro",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "description": "Sistema de gestão para oficinas mecânicas. Controle ordens de serviço, orçamentos, estoque, financeiro e clientes pelo celular.",
+      "url": "https://mechanicraizpro.com.br",
+      "featureList": "Ordem de Serviço, Controle de Estoque, Financeiro, Checklist de Entrada, Orçamentos, Gestão de Clientes"
+    }
+    </script>
+
+    <!-- JSON-LD: FAQPage -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Funciona no celular?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. Funciona no celular, no tablet e no computador. 100% online, acesse de qualquer lugar — no pátio, no balcão ou no escritório."
+            }
+        },
+        {
+          "@type": "Question",
+          "name": "Tem teste grátis?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sim. Você tem 14 dias grátis para testar tudo. Sem cartão de crédito e cancela quando quiser."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Serve para oficina de moto?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sim. O sistema atende oficinas de moto com funcionalidades pensadas para esse segmento."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Serve para auto elétrica?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sim. Tem espaço para registro de diagnóstico, módulos, sensores e histórico elétrico por veículo."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Dá para enviar orçamento pelo WhatsApp?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sim. Você cria o orçamento no sistema e envia o link direto para o cliente pelo WhatsApp."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Tem ordem de serviço?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sim. Cria OS completa com fotos, peças, valores e histórico. Tudo registrado e organizado."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Precisa instalar alguma coisa?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Não. O sistema funciona direto no navegador do celular ou computador. Sem instalação obrigatória."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "É difícil de usar?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Não. Se você sabe usar WhatsApp, sabe usar o Mechanic Raiz Pro. Foi feito para mecânicos, não para TI."
+          }
+        }
+      ]
+    }
+    </script>
+    <meta property="og:title" content="Sistema para Oficinas Mecânicas | Mechanic Raiz Pro">
+  <meta name="twitter:title" content="Sistema para Oficinas Mecânicas | Mechanic Raiz Pro">
+  <meta property="og:description" content="Crie ordem de serviço em minutos, envie orçamento pelo WhatsApp e acompanhe financeiro, estoque e lucro da oficina. Use no celular, tablet ou computador. Teste grátis.">
+  <meta name="twitter:description" content="Crie ordem de serviço em minutos, envie orçamento pelo WhatsApp e acompanhe financeiro, estoque e lucro da oficina. Use no celular, tablet ou computador. Teste grátis.">
+</head>
+
+  <body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MQH8GDJN"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- Meta Pixel NoScript Fallback -->
+    <noscript>
+    <img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id=904555945615995&ev=PageView&noscript=1"/>
+    </noscript>
+  </body>
+</html>

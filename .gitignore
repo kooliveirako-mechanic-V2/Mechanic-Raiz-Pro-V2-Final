@@ -1,0 +1,106 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env
+.env.*
+
+# ============================================
+# BLINDAGEM CONTRA ARQUIVOS GRANDES (>100MB)
+# Evita que builds pesados quebrem o push pro GitHub
+# ============================================
+
+# Electron build artifacts
+electron-release/
+electron-dist/
+electron-builds/
+out/
+release/
+releases/
+*.app/
+MechanicRaizPro-*/
+*-darwin-*/
+*-linux-*/
+*-win32-*/
+*-win-*/
+*-mac-*/
+
+# Instaladores e binários distribuíveis
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.msi
+*.pkg
+*.snap
+*.zip
+*.tar.gz
+*.tar.bz2
+*.7z
+*.rar
+
+# Bibliotecas nativas pesadas
+*.dll
+*.so
+*.so.*
+*.dylib
+*.framework/
+
+# Recursos Electron/Chromium
+*.pak
+*.icns
+*.bin
+icudtl.dat
+snapshot_blob.bin
+v8_context_snapshot*.bin
+resources.pak
+chrome_*_percent.pak
+chrome_crashpad_handler
+chrome-sandbox
+locales/
+LICENSES.chromium.html
+app.asar
+app.asar.unpacked/
+
+# Caches de build
+.cache/
+.parcel-cache/
+.turbo/
+.next/
+.nuxt/
+.output/
+.vercel/
+.netlify/
+
+# Arquivos temporários grandes
+*.iso
+*.img
+*.bak
+*.dump
+.env.local
+.env
+node_modules/
+dist/

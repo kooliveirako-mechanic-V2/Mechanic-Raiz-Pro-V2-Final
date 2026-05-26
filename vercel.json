@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    {
+      "source": "/t/:code",
+      "destination": "https://marketing-tracking.lovable.app/t/:code",
+      "has": [{ "type": "host", "value": "mt.mechanicraizpro.com.br" }]
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
