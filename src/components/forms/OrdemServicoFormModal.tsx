@@ -166,7 +166,7 @@ function buildStateFromOrdem(ordemData: OrdemServico): OSFormState {
     // CAUSA RAIZ: campo "Mão de Obra" carrega SOMENTE valor_mao_obra.
     // Nunca usar valor_servico como fallback aqui, pois valor_servico é o Total Mestre
     // (mão de obra + peças) e isso faz o total virar mão de obra/lucro na edição.
-    valorServico: maoDeObraSalva > 0 ? maoDeObraSalva.toString() : "",
+    valorServico: maoDeObraSalva.toString(),
     custoServico: ordemData.custo_servico?.toString() || "",
     temGarantia: ordemData.tem_garantia,
     diasGarantia: ordemData.dias_garantia?.toString() || "90",
