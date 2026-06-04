@@ -10,7 +10,7 @@ const buildId = `b-${Date.now().toString(36)}-${Math.random().toString(36).slice
 const buildTime = new Date().toISOString();
 
 export default defineConfig(({ mode }) => ({
-  base: './',
+  base: '/',
   define: {
     __BUILD_TIMESTAMP__: JSON.stringify(buildTime),
     __BUILD_ID__: JSON.stringify(buildId),
