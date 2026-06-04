@@ -66,8 +66,7 @@ async function syncRecorrencias(veiculoId: string, tipoServico: string, oficina_
   }
 }
 
-export type StatusOS = "pendente" | "em_diagnostico" | "em_andamento" | "aguardando_peca" | "finalizado" | "cancelado";
-
+export type StatusOS = "aberto" | "pendente" | "em_diagnostico" | "em_andamento" | "aguardando_peca" | "finalizado" | "cancelado";
 export interface OrdemServico {
   id: string;
   numero: number | null;
