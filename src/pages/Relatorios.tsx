@@ -1,15 +1,13 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { useOrdensServico } from "@/hooks/useOrdensServico";
-import { useFinanceiro } from "@/hooks/useFinanceiro";
 import { useEstoque } from "@/hooks/useEstoque";
 import { useOficina } from "@/contexts/OficinaContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/formatters";
-import { subDays, subMonths, format, startOfMonth, isAfter } from "date-fns";
+import { subDays, subMonths, format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   BarChart3,
@@ -18,7 +16,6 @@ import {
   ChevronDown,
   ChevronUp,
   Package,
-  Wrench,
   DollarSign,
 } from "lucide-react";
 import { ExportPDFButton } from "@/components/relatorios/ExportPDFButton";
@@ -34,6 +31,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { getUnifiedMetrics } from "@/services/financeiroService";
 
 type PeriodoFilter = "30d" | "3m" | "6m" | "1a";
 
@@ -112,58 +110,61 @@ function ReportSection({
   );
 }
 
-// ─── RELATÓRIO 1: FATURAMENTO ──────────────────────────────
+// ─── RELATÓRIO 1: FATURAMENTO (FASE 2) ────────────────────────
 function RelatorioFaturamento() {
   const { oficinaAtual } = useOficina();
   const [periodo, setPeriodo] = useState<PeriodoFilter>("3m");
-  const dataInicio = getDataInicio(periodo);
-
-  const { data: financeiro = [], isLoading } = useQuery({
-    queryKey: ["relatorio-faturamento", oficinaAtual?.id, periodo],
+  
+  // Consumindo a fonte única mês a mês para o gráfico
+  const { data: chartData = [], isLoading } = useQuery({
+    queryKey: ["relatorio-faturamento-unificado", oficinaAtual?.id, periodo],
     queryFn: async () => {
       if (!oficinaAtual) return [];
-      const { data, error } = await supabase
-        .from("financeiro")
-        .select("valor, data, origem, tipo")
-        .eq("oficina_id", oficinaAtual.id)
-        .eq("tipo", "entrada")
-        .gte("data", format(dataInicio, "yyyy-MM-dd"))
-        .order("data", { ascending: true });
-      if (error) throw error;
-      return data || [];
+      const data = [];
+      const numMonths = periodo === "30d" ? 1 : periodo === "3m" ? 3 : periodo === "6m" ? 6 : 12;
+      
+      for (let i = numMonths - 1; i >= 0; i--) {
+        const date = subMonths(new Date(), i);
+        const inicio = format(startOfMonth(date), "yyyy-MM-dd");
+        const fim = format(endOfMonth(date), "yyyy-MM-dd");
+        
+        const m = await getUnifiedMetrics({
+          oficinaId: oficinaAtual.id,
+          inicio,
+          fim,
+        });
+        
+        data.push({
+          mes: format(date, "MMM/yy", { locale: ptBR }),
+          mao_obra: m.categorias.servicos.bruto,
+          pecas: m.categorias.pecas.bruto,
+          custo_pecas: m.operacional.custo_pecas,
+          lucro: m.operacional.lucro_operacional,
+          lucro_caixa: m.caixa.lucro_caixa_oficina_periodo,
+          faturamento: m.faturamento.liquido,
+        });
+      }
+      return data;
     },
     enabled: !!oficinaAtual,
     staleTime: 60_000,
   });
 
-  const chartData = useMemo(() => {
-    const months: Record<string, { mes: string; mao_obra: number; pecas: number }> = {};
-
-    financeiro.forEach((r) => {
-      const mesKey = format(new Date(r.data), "yyyy-MM");
-      const mesLabel = format(new Date(r.data), "MMM/yy", { locale: ptBR });
-      if (!months[mesKey]) months[mesKey] = { mes: mesLabel, mao_obra: 0, pecas: 0 };
-
-      const origem = (r.origem || "").toLowerCase();
-      if (origem.includes("comissão")) return; // skip commissions
-      if (origem.includes("venda") || origem.includes("peça") || origem.includes("peca")) {
-        months[mesKey].pecas += Number(r.valor);
-      } else {
-        months[mesKey].mao_obra += Number(r.valor);
-      }
-    });
-
-    return Object.values(months);
-  }, [financeiro]);
-
-  const totalPeriodo = financeiro.reduce((s, r) => s + Number(r.valor), 0);
+  const totalPeriodo = chartData.reduce((s, r) => s + r.faturamento, 0);
+  const totalLucroPeriodo = chartData.reduce((s, r) => s + r.lucro, 0);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <p className="text-xs text-muted-foreground">Total no período</p>
-          <p className="text-2xl font-bold text-foreground">{formatCurrency(totalPeriodo)}</p>
+        <div className="flex flex-wrap gap-4">
+          <div className="border-l border-border pl-4">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">Faturamento Líquido</p>
+            <p className="text-xl font-bold text-foreground">{formatCurrency(totalPeriodo)}</p>
+          </div>
+          <div className="border-l border-border pl-4">
+            <p className="text-[10px] uppercase font-bold text-success">Lucro Operacional</p>
+            <p className="text-xl font-bold text-success">{formatCurrency(totalLucroPeriodo)}</p>
+          </div>
         </div>
         <PeriodoSelector value={periodo} onChange={setPeriodo} />
       </div>
@@ -183,13 +184,15 @@ function RelatorioFaturamento() {
               <Tooltip
                 formatter={(value: number, name: string) => [
                   formatCurrency(value),
-                  name === "mao_obra" ? "Mão de obra" : "Peças",
+                  name === "mao_obra" ? "Mão de obra" : name === "pecas" ? "Peças" : "Lucro Operacional",
                 ]}
                 contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
               />
-              <Legend formatter={(v) => (v === "mao_obra" ? "Mão de obra" : "Peças")} />
+              <Legend formatter={(v) => (v === "mao_obra" ? "Mão de obra" : v === "pecas" ? "Peças" : "Lucro Operacional")} />
               <Bar dataKey="mao_obra" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="pecas" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="lucro" name="Lucro Operacional" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="lucro_caixa" name="Lucro de Caixa" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -205,32 +208,34 @@ function RelatorioServicos() {
   const dataInicio = getDataInicio(periodo);
 
   const { data: servicos = [], isLoading } = useQuery({
-    queryKey: ["relatorio-servicos", oficinaAtual?.id, periodo],
+    queryKey: ["relatorio-servicos-ranking", oficinaAtual?.id, periodo],
     queryFn: async () => {
       if (!oficinaAtual) return [];
       const { data, error } = await supabase
         .from("ordens_servico")
-        .select("tipo_servico, valor_servico, status, itens_os(valor_total, quantidade, valor_unitario)")
+        .select("tipo_servico, valor_servico, custo_servico, status, itens_os(valor_total, quantidade, valor_unitario, custo_unitario)")
         .eq("oficina_id", oficinaAtual.id)
         .gte("data_servico", format(dataInicio, "yyyy-MM-dd"));
       if (error) throw error;
       return (data || []).map((s: any) => {
         const totalItens = (s.itens_os || []).reduce((acc: number, item: any) =>
           acc + (item.valor_total ?? ((item.quantidade || 0) * (item.valor_unitario || 0))), 0);
-        // CAUSA RAIZ: valor_servico JÁ inclui itens (via recalcOSTotals). Usar fallback apenas.
-        return { ...s, valor_total_real: (Number(s.valor_servico) || 0) > 0 ? (Number(s.valor_servico) || 0) : totalItens };
+        const valorTotal = (Number(s.valor_servico) || 0) > 0 ? (Number(s.valor_servico) || 0) : totalItens;
+        const custoTotal = (Number(s.custo_servico) || 0) > 0 ? (Number(s.custo_servico) || 0) : (s.itens_os || []).reduce((acc: number, item: any) => acc + ((item.custo_unitario || 0) * (item.quantidade || 1)), 0);
+        return { ...s, valor_total_real: valorTotal, lucro_real: valorTotal - custoTotal };
       });
     },
     enabled: !!oficinaAtual,
   });
 
   const ranking = useMemo(() => {
-    const map: Record<string, { nome: string; qtd: number; valor: number }> = {};
+    const map: Record<string, { nome: string; qtd: number; valor: number; lucro: number }> = {};
     servicos.forEach((s: any) => {
       const key = s.tipo_servico;
-      if (!map[key]) map[key] = { nome: key, qtd: 0, valor: 0 };
+      if (!map[key]) map[key] = { nome: key, qtd: 0, valor: 0, lucro: 0 };
       map[key].qtd++;
-      map[key].valor += Number(s.valor_total_real || s.valor_servico || 0);
+      map[key].valor += Number(s.valor_total_real || 0);
+      map[key].lucro += Number(s.lucro_real || 0);
     });
     return Object.values(map).sort((a, b) => b.qtd - a.qtd);
   }, [servicos]);
@@ -264,9 +269,16 @@ function RelatorioServicos() {
                   {item.qtd}x realizado
                 </p>
               </div>
-              <p className="text-sm font-semibold text-foreground shrink-0">
-                {formatCurrency(item.valor)}
-              </p>
+              <div className="shrink-0">
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-foreground">
+                    {formatCurrency(item.valor)}
+                  </p>
+                  <p className="text-[10px] text-success font-medium">
+                    Lucro: {formatCurrency(item.lucro)}
+                  </p>
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -327,8 +339,6 @@ function RelatorioEstoqueCritico() {
 
 // ─── PAGE ──────────────────────────────────────────────────
 export default function Relatorios() {
-  const isMobile = useIsMobile();
-
   return (
     <MainLayout>
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">

@@ -51,14 +51,28 @@ export function KanbanFinalizarModal({
     if (open && formasPagamento.length > 0) {
       // Sempre resetar ao abrir para evitar estado residual de outra OS
       setNumeroParcelas(1);
+      
+      // Prioridade 1: Forma de pagamento já salva na OS
       if (ordem?.forma_pagamento) {
         const match = formasPagamento.find(
           (f) => f.nome.toLowerCase() === ordem.forma_pagamento?.toLowerCase()
         );
-        setFormaPagamentoId(match?.id || "");
-      } else {
-        setFormaPagamentoId("");
+        if (match) {
+          setFormaPagamentoId(match.id);
+          return;
+        }
       }
+
+      // Prioridade 2: Forma de pagamento marcada como padrão no sistema
+      const padrao = formasPagamento.find(f => f.padrao);
+      if (padrao) {
+        setFormaPagamentoId(padrao.id);
+        return;
+      }
+
+      // Prioridade 3: Dinheiro ou a primeira da lista
+      const dinheiro = formasPagamento.find(f => f.nome.toLowerCase() === "dinheiro");
+      setFormaPagamentoId(dinheiro?.id || formasPagamento[0]?.id || "");
     }
   }, [open, ordem?.id, ordem?.forma_pagamento, formasPagamento]);
 

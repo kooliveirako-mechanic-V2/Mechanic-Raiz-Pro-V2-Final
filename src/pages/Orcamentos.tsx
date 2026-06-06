@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useOrcamentos, Orcamento, StatusOrcamento } from "@/hooks/useOrcamentos";
+import { getPublicOrcamentoLink } from "@/utils/url";
 import { useQueryClient } from "@tanstack/react-query";
 import { castRpcResult, type ConverterOrcamentoEmOSResult } from "@/lib/rpcTypes";
 
@@ -141,7 +142,9 @@ export default function Orcamentos() {
 
   const handleCopyLink = (e: React.MouseEvent, orcamento: Orcamento) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/orcamento/${orcamento.numero || orcamento.id}`;
+    // CAUSA RAIZ: Usava window.location.origin diretamente, ignorando a lógica de domínio customizado.
+    // Agora usa getPublicOrcamentoLink que possui a blindagem necessária.
+    const url = getPublicOrcamentoLink(orcamento.numero || orcamento.id);
     navigator.clipboard.writeText(url);
     toast.success("Link copiado!");
   };

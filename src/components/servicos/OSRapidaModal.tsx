@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, parseCurrency } from "@/lib/formatters";
+import { isChildModalActive } from "@/lib/childModalLock";
 import { tiposServicoCarro, tiposServicoMoto, tiposServicoAutoEletrica } from "@/components/forms/os/OSFormConstants";
 
 // OSCriada uses the same shape expected by openWhatsAppOS
@@ -76,6 +77,16 @@ export function OSRapidaModal({ open, onOpenChange }: OSRapidaModalProps) {
   const [responsavelId, setResponsavelId] = useState("");
   const [osCreated, setOsCreated] = useState<OSCriada | null>(null);
   const [showServicoRapido, setShowServicoRapido] = useState(false);
+  const servicoRapidoJustClosedRef = useRef<number>(0);
+  const isChildCloseEcho = useCallback(() => {
+    if (showServicoRapido) return true;
+    if (isChildModalActive()) return true;
+    return Date.now() - servicoRapidoJustClosedRef.current < 500;
+  }, [showServicoRapido]);
+  const handleServicoRapidoOpenChange = useCallback((v: boolean) => {
+    if (!v) servicoRapidoJustClosedRef.current = Date.now();
+    setShowServicoRapido(v);
+  }, []);
   // P1 FIX #8: Allow choosing between finalize or register
   const [osMode, setOsMode] = useState<OSMode>("finalizar");
   const [formaPagamentoId, setFormaPagamentoId] = useState("");
@@ -87,6 +98,7 @@ export function OSRapidaModal({ open, onOpenChange }: OSRapidaModalProps) {
     custo_unitario: number;
     valor_mao_obra?: number;
     estoque_id?: string | null;
+    tipo?: "servico" | "produto";
   }>>([]);
 
   // ─── AutoSave: persist form data across app switches ─────────────
@@ -321,6 +333,7 @@ export function OSRapidaModal({ open, onOpenChange }: OSRapidaModalProps) {
           valor_mao_obra: Number(item.valor_mao_obra) || 0,
           custo_unitario: Number(item.custo_unitario) || 0,
           estoque_id: item.estoque_id || null,
+          tipo: item.tipo || (item.estoque_id ? "produto" : "servico"),
         })),
       ];
 
@@ -949,7 +962,7 @@ export function OSRapidaModal({ open, onOpenChange }: OSRapidaModalProps) {
   const servicoRapidoRender = (
     <ServicoRapidoModal
       open={showServicoRapido}
-      onOpenChange={setShowServicoRapido}
+      onOpenChange={handleServicoRapidoOpenChange}
       onAddItem={handleAddPendingItem}
     />
   );
@@ -958,7 +971,10 @@ export function OSRapidaModal({ open, onOpenChange }: OSRapidaModalProps) {
   if (isMobile) {
     return (
       <>
-        <Drawer open={open} onOpenChange={onOpenChange}>
+        <Drawer open={open} onOpenChange={(isOpen) => {
+          if (!isOpen && isChildCloseEcho()) return;
+          onOpenChange(isOpen);
+        }}>
           <DrawerContent className="px-4 pb-6 max-h-[92dvh]">
             <DrawerHeader className="text-left px-0 shrink-0">
               <DrawerTitle className="flex items-center gap-2">
@@ -977,8 +993,21 @@ export function OSRapidaModal({ open, onOpenChange }: OSRapidaModalProps) {
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+      <Dialog
+        open={open}
+        onOpenChange={(isOpen) => {
+          if (!isOpen && isChildCloseEcho()) return;
+          onOpenChange(isOpen);
+        }}
+        modal={!showServicoRapido}
+      >
+        <DialogContent
+          className="sm:max-w-md max-h-[90vh] flex flex-col"
+          onInteractOutside={(e) => { if (isChildCloseEcho()) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isChildCloseEcho()) e.preventDefault(); }}
+          onPointerDownOutside={(e) => { if (isChildCloseEcho()) e.preventDefault(); }}
+          onFocusOutside={(e) => { if (isChildCloseEcho()) e.preventDefault(); }}
+        >
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               {HeaderContent}

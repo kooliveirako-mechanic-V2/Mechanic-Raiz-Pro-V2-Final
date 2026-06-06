@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
+import { isChildModalActive } from "@/lib/childModalLock";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { handleFormKeyDown } from "@/lib/formGuard";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Wrench, MessageCircle, Link2, Receipt, Eye } from "lucide-react";
 import { openWhatsAppOS } from "@/lib/whatsapp";
+import { getPublicOSLink } from "@/utils/url";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/formatters";
@@ -253,6 +255,13 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
   const [sinalInicial, setSinalInicial] = useState<SinalInicial>(emptySinalInicial);
   const [servicoRapidoInitialView, setServicoRapidoInitialView] = useState<"menu" | "livre" | "estoque" | "catalogo">("menu");
   const [editingPendingItem, setEditingPendingItem] = useState<PendingItem | null>(null);
+  // Guarda contra propagação de pointerdown/escape do Radix quando o modal-filho
+  // (ServicoRapidoModal) acabou de fechar — evita que o Dialog/Drawer pai feche junto.
+  const servicoRapidoJustClosedRef = useRef<number>(0);
+  const isChildCloseEcho = useCallback(() => {
+    if (isChildModalActive()) return true;
+    return Date.now() - servicoRapidoJustClosedRef.current < 500;
+  }, []);
 
   const openServicoRapido = useCallback((view: "menu" | "livre" | "estoque" | "catalogo" = "menu") => {
     setEditingPendingItem(null);
@@ -332,6 +341,10 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
   const pendingItensPecas = f.pendingItens.reduce((acc, item) => acc + (item.valor_unitario * item.quantidade), 0);
   const pendingItensMaoObra = f.pendingItens.reduce((acc, item) => acc + (item.valor_mao_obra || 0), 0);
   const pendingItensTotal = pendingItensPecas + pendingItensMaoObra;
+  const subtotalOS = Math.max(parseFloat(f.valorServico) || 0, pendingItensMaoObra) + pendingItensPecas;
+  const descontoNum = parseCurrency(f.descontoValor || "");
+  const totalLiquidoOS = Math.max(subtotalOS - descontoNum, 0);
+
   const pendingItensCusto = f.pendingItens.reduce((acc, item) => acc + ((item.custo_unitario || 0) * item.quantidade), 0);
   const pendingItensSemCustoCount = f.pendingItens.filter((item) => item.estoque_id && (item.custo_unitario || 0) <= 0).length;
 
@@ -346,13 +359,14 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
     dispatch({ type: "SET_ALL", payload: buildStateFromDraft(draft, initialDate) });
   }, [initialDate]);
 
-  const { hasDraft, clearDraft, lastSaved, restore, isSaving } = useAutoSave({
+  const { hasDraft, clearDraft, lastSaved, restore, isSaving, saveNow } = useAutoSave({
     key: osDraftKey,
     data: formData,
     enabled: open && !isEditing,
     interval: 3000,
     onRestore: applyDraft,
   });
+
 
   const veiculosDoCliente = veiculos.filter((v) => v.cliente_id === f.clienteId);
   const veiculoSelecionado = veiculos.find((v) => v.id === f.veiculoId);
@@ -421,6 +435,10 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // GUARD: ignore submit events that bubbled up from nested forms
+    // (e.g. ServicoRapidoModal in portals). The OS form submit must only
+    // fire when the user clicks the OS form's own submit button.
+    if (e.target !== e.currentTarget) return;
     let activeRpc: string | null = null;
     let rpcPayload: Record<string, unknown> | null = null;
 
@@ -450,6 +468,11 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
     isSubmittingRef.current = true;
     lastSubmitRef.current = now;
     setLoading(true);
+
+    // BLINDAGEM: Salvar rascunho imediatamente antes de tentar enviar para o banco.
+    // Se a rede cair ou o banco falhar, o rascunho está garantido no localStorage.
+    saveNow();
+
 
     const data: OrdemServicoInput = {
       cliente_id: f.clienteId,
@@ -508,6 +531,7 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
             p_numero_parcelas: f.numeroParcelas,
             p_fotos_saida: f.fotosSaida.length > 0 ? f.fotosSaida : null,
             p_observacoes_conclusao: f.observacoesConclusao || null,
+            p_valor_mao_obra: parseCurrency(f.valorServico),
           };
 
           const { data: rpcResult, error: rpcError } = await supabase.rpc(
@@ -537,7 +561,11 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
           setTimeout(() => setOsFinalizadaOpen(true), 300);
           toast.success("OS finalizada!", { description: "Status, financeiro e estoque atualizados atomicamente." });
         } else {
-          await updateOrdem.mutateAsync({ id: ordem.id, ...data });
+          await updateOrdem.mutateAsync({ 
+            id: ordem.id, 
+            ...data,
+            valor_mao_obra: parseCurrency(f.valorServico)
+          });
           // Desconto: persistido em separado (trigger de auditoria captura quem aplicou)
           const descNum = parseCurrency(f.descontoValor);
           const descAtual = Number((ordem as any).desconto ?? 0);
@@ -575,11 +603,11 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
             nome_item: item.nome_item, quantidade: Number(item.quantidade) || 1,
             valor_unitario: Number(item.valor_unitario) || 0, valor_mao_obra: Number(item.valor_mao_obra) || 0,
             custo_unitario: Number(item.custo_unitario) || 0, estoque_id: item.estoque_id || null,
+            tipo: item.tipo || (item.estoque_id ? "produto" : "servico"),
           })),
         ];
 
-        const hasPerServiceMO = servicosItemizados.length > 0;
-        const globalMaoDeObra = hasPerServiceMO ? 0 : (parseFloat(f.valorServico) || 0);
+        const globalMaoDeObra = parseCurrency(f.valorServico);
 
         activeRpc = "criar_os_completa";
         rpcPayload = {
@@ -692,17 +720,26 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
           });
         }
       }
-    } catch (error) {
-      logDetailedError("[OS Form] OrdemServicoFormModal.handleSubmit", error, {
+    } catch (error: any) {
+      const diagnostics = logDetailedError("[OS Form] OrdemServicoFormModal.handleSubmit", error, {
         handler: "OrdemServicoFormModal.handleSubmit", rpc: activeRpc, payload: rpcPayload,
         clienteId: f.clienteId, veiculoId: f.veiculoId, status: f.status, isEditing: !!ordem,
       });
       import("@/lib/sentry").then(({ Sentry }) => Sentry.captureException(error, { extra: { clienteId: f.clienteId, veiculoId: f.veiculoId, status: f.status, isEditing: !!(ordem), context: "OrdemServicoFormModal.handleSubmit" } }));
-      toast.error("Erro ao salvar", { description: "Seus dados foram salvos localmente. Tente novamente." });
+      
+      // BLINDAGEM: rascunho preservado, mas sem mascarar erro de banco como internet.
+      const isNetworkError = error?.message?.includes("fetch") || error?.name === "TypeError";
+      toast.error(isNetworkError ? "Erro de conexão" : "Erro técnico ao salvar", {
+        description: isNetworkError
+          ? "Seu rascunho ficou salvo neste aparelho. Verifique a conexão e tente novamente."
+          : `${diagnostics.message.slice(0, 180)} Seu rascunho ficou salvo neste aparelho.`,
+        duration: 10000
+      });
     } finally {
       isSubmittingRef.current = false;
       setLoading(false);
     }
+
   };
 
   // UI-only states (not part of form data, low count, safe as individual useState)
@@ -717,9 +754,9 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
 
   const handleCopyLink = () => {
     if (!ordem) return;
-    const url = `${window.location.origin}/os/${(ordem as any).numero || ordem.id}`;
+    const url = getPublicOSLink(ordem.numero || ordem.id);
     navigator.clipboard.writeText(url);
-    toast.success("Link copiado!", { description: "Envie para o cliente acompanhar o serviço" });
+    toast.success("Link da OS copiado!", { description: "Envie para o cliente acompanhar o serviço" });
   };
 
   const handleCancel = () => {
@@ -822,7 +859,7 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
         <OSSinalInicialBlock
           value={sinalInicial}
           onChange={setSinalInicial}
-          totalEstimado={(parseFloat(f.valorServico) || 0) + pendingItensTotal}
+          totalEstimado={totalLiquidoOS}
         />
       )}
 
@@ -830,8 +867,8 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
       {isEditing && ordem && (
         <OSResumoValores
           ordemServicoId={ordem.id}
-          valorServico={ordem.valor_servico || 0}
-          valorMaoObra={parseFloat(f.valorServico) || 0}
+          valorServico={parseCurrency(f.valorServico) + pendingItensTotal}
+          valorMaoObra={parseCurrency(f.valorServico)}
           custoServico={parseFloat(f.custoServico) || 0}
           desconto={parseCurrency(f.descontoValor || "")}
           descontoMotivo={f.descontoMotivo}
@@ -955,7 +992,7 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
     return (
       <>
         <Drawer open={open} onOpenChange={(isOpen) => {
-          if (!isOpen && f.servicoRapidoOpen) return;
+          if (!isOpen && (f.servicoRapidoOpen || isChildCloseEcho())) return;
           if (!isOpen && !isEditing && (f.clienteId || f.veiculoId || f.valorServico || f.descricao || f.pendingItens.length > 0)) {
             const confirm = window.confirm("Você tem dados não salvos. Deseja sair? Seu rascunho será preservado automaticamente.");
             if (!confirm) return;
@@ -973,7 +1010,11 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
         <OSFinalizadaModal open={osFinalizadaOpen} onOpenChange={setOsFinalizadaOpen} ordem={savedOrdem} oficinaNome={oficinaAtual?.nome} oficinaTelefone={oficinaAtual?.telefone} onEdit={() => { if (savedOrdem) setOsFinalizadaOpen(false); }} />
         <ServicoRapidoModal
           open={f.servicoRapidoOpen}
-          onOpenChange={(v) => { patchField("servicoRapidoOpen", v); if (!v) setEditingPendingItem(null); }}
+          onOpenChange={(v) => {
+            if (!v) servicoRapidoJustClosedRef.current = Date.now();
+            patchField("servicoRapidoOpen", v);
+            if (!v) setEditingPendingItem(null);
+          }}
           initialView={servicoRapidoInitialView}
           editingItem={editingPendingItem}
           onUpdateItem={updatePendingItem}
@@ -991,7 +1032,7 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
       <Dialog
         open={open}
         onOpenChange={(isOpen) => {
-          if (!isOpen && f.servicoRapidoOpen) return;
+          if (!isOpen && (f.servicoRapidoOpen || isChildCloseEcho())) return;
           onOpenChange(isOpen);
         }}
         modal={!f.servicoRapidoOpen}
@@ -999,10 +1040,16 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
         <DialogContent
           className="w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-hidden p-0 gap-0 flex flex-col"
           onInteractOutside={(event) => {
-            if (f.servicoRapidoOpen) event.preventDefault();
+            if (f.servicoRapidoOpen || isChildCloseEcho()) event.preventDefault();
           }}
           onEscapeKeyDown={(event) => {
-            if (f.servicoRapidoOpen) event.preventDefault();
+            if (f.servicoRapidoOpen || isChildCloseEcho()) event.preventDefault();
+          }}
+          onPointerDownOutside={(event) => {
+            if (f.servicoRapidoOpen || isChildCloseEcho()) event.preventDefault();
+          }}
+          onFocusOutside={(event) => {
+            if (f.servicoRapidoOpen || isChildCloseEcho()) event.preventDefault();
           }}
         >
           <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/60 shrink-0">
@@ -1017,7 +1064,11 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
       <OSFinalizadaModal open={osFinalizadaOpen} onOpenChange={setOsFinalizadaOpen} ordem={savedOrdem} oficinaNome={oficinaAtual?.nome} oficinaTelefone={oficinaAtual?.telefone} onEdit={() => { if (savedOrdem) setOsFinalizadaOpen(false); }} />
       <ServicoRapidoModal
         open={f.servicoRapidoOpen}
-        onOpenChange={(v) => { patchField("servicoRapidoOpen", v); if (!v) setEditingPendingItem(null); }}
+        onOpenChange={(v) => {
+          if (!v) servicoRapidoJustClosedRef.current = Date.now();
+          patchField("servicoRapidoOpen", v);
+          if (!v) setEditingPendingItem(null);
+        }}
         initialView={servicoRapidoInitialView}
         editingItem={editingPendingItem}
         onUpdateItem={updatePendingItem}

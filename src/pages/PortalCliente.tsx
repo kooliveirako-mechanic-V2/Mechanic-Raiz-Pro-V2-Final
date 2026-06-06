@@ -123,7 +123,12 @@ export default function PortalCliente() {
         const { data: result, error: fetchError } = await supabase
           .rpc('get_client_portal_data', { p_token: token });
 
-        if (fetchError) throw fetchError;
+        if (fetchError) {
+          console.error("[PortalCliente] Erro RPC:", fetchError);
+          // Fallback via Select - portal_token não é uma coluna padrão, mas geralmente temos uuid de cliente ou similar
+          // Aqui dependemos do RPC pois o token é gerado, mas vamos pelo menos melhorar o erro
+          throw fetchError;
+        }
 
         if (!result) {
           setError("Portal não encontrado. Verifique se o link está correto.");
@@ -138,9 +143,9 @@ export default function PortalCliente() {
         if (portalData.veiculos?.length > 0) {
           setExpandedVehicles(new Set([portalData.veiculos[0].id]));
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error fetching portal data:", err);
-        setError("Erro ao carregar dados. Tente novamente.");
+        setError(`Erro ao carregar dados: ${err.message || 'Erro desconhecido'}`);
       } finally {
         setLoading(false);
       }

@@ -72,6 +72,7 @@ export function OSFormServicoSection({
           <Select value={status} onValueChange={(v) => setStatus(v as StatusOS)}>
             <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
             <SelectContent className="z-[9999] bg-background" position="popper" sideOffset={4}>
+              <SelectItem value="aberto" className="py-3">Aberto</SelectItem>
               <SelectItem value="pendente" className="py-3">Aguardando</SelectItem>
               {isAutoEletrica && <SelectItem value="em_diagnostico" className="py-3">Em Diagnóstico</SelectItem>}
               <SelectItem value="em_andamento" className="py-3">Em Andamento</SelectItem>

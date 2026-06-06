@@ -78,7 +78,7 @@ export function useComissoes() {
         .select("descricao, valor, data, status")
         .eq("oficina_id", oficinaAtual.id)
         .eq("tipo", "saida")
-        .eq("origem", "Comissão")
+        .eq("categoria", "comissao")
         .gte("data", inicio);
       if (error) throw error;
       return data || [];

@@ -1,54 +1,65 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { trackEvent, notifyMetaUrlChange } from "@/lib/tracking";
+import { trackEvent } from "@/lib/tracking";
 
+/**
+ * Componente responsável por resetar o scroll em navegações
+ * e gerenciar o disparo ÚNICO de PageView para o GTM/dataLayer.
+ */
 export function ScrollToTop() {
   const { pathname, search, hash } = useLocation();
+  const lastPathRef = useRef<string | null>(null);
   const isFirstRun = useRef(true);
 
   useEffect(() => {
-    // [Fase F] page_view com dedup por URL via sessionStorage.
-    // Garante 1 disparo por URL única. Recarregar mesma URL não re-dispara
-    // (Pixel/CAPI já dispararam PageView no boot via fbq init + capi-client).
-    try {
-      const currentPath = pathname + search;
-      const LAST_KEY = "mrp_last_pageview_path";
-      const lastPath = sessionStorage.getItem(LAST_KEY);
-      if (currentPath !== lastPath) {
-        sessionStorage.setItem(LAST_KEY, currentPath);
-        if (isFirstRun.current) {
-          isFirstRun.current = false;
-          // 1ª carga: Pixel/CAPI já fizeram PageView no boot → só dataLayer (GTM/GA4).
-          trackEvent("page_view", {
-            params: { is_initial_load: true, nav_type: "initial" },
-            skipPixel: true,
-            skipMocapi: true,
-          });
-        } else {
-          // Navegação SPA: trackEvent completo com event_id único (Meta dedupa).
-          trackEvent("page_view", {
-            params: { is_initial_load: false, nav_type: "spa" },
-          });
-          // [Fase H2] Avisa Pixel da nova URL → Event Setup Tool reavalia regras "URL contains"
-          notifyMetaUrlChange();
-        }
-      } else {
-        isFirstRun.current = false;
-      }
-    } catch {}
+    const currentPath = pathname;
+    const currentSearch = search;
+    const isInitial = isFirstRun.current;
 
-    if (hash) return;
+    // BLOQUEIO REFORÇADO: Se o pathname não mudou, ignoramos o disparo de page_view.
+    // Isso evita que a seleção de plano (?plano=moto) dispare um segundo PageView
+    // já que o usuário ainda está na mesma página (/auth).
+    if (!isInitial && lastPathRef.current === currentPath) {
+      // Logamos no console para depuração no preview
+      console.info(
+        `[ScrollToTop] 🛡️ PageView BLOQUEADO (apenas parâmetros mudaram na rota ${currentPath}):`,
+        currentSearch
+      );
+      return;
+    }
 
+    // Se chegou aqui, ou é carga inicial ou mudou de página de fato (ex: / -> /auth)
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    
+    // Disparo oficial para o dataLayer -> GTM
+    console.info(
+      `[ScrollToTop] 🚀 Disparando page_view oficial (${isInitial ? "CARGA INICIAL" : "MUDANÇA DE ROTA"}):`,
+      currentPath
+    );
+    
+    trackEvent("page_view", {
+      params: {
+        page_path: currentPath,
+        page_search: currentSearch,
+        is_initial_load: isInitial,
+        nav_type: isInitial ? "initial" : "spa",
+      },
+      // Garantimos que não haja disparo direto redundante
+      skipPixel: true,
+      skipMocapi: true,
+    });
+
+    // Atualiza estado para a próxima mudança de URL
+    lastPathRef.current = currentPath;
+    isFirstRun.current = false;
+
+    // Tratamento de scroll para elementos com scroll interno se necessário
     const appScrollRoot = document.querySelector<HTMLElement>("[data-app-scroll-root]");
     if (appScrollRoot) {
       appScrollRoot.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      appScrollRoot.scrollTop = 0;
     }
-
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-  }, [pathname, search, hash]);
+  }, [pathname]); // Observamos apenas pathname para evitar disparos em query params
 
   return null;
 }
+

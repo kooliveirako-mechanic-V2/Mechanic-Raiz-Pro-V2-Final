@@ -67,6 +67,7 @@ async function syncRecorrencias(veiculoId: string, tipoServico: string, oficina_
 }
 
 export type StatusOS = "aberto" | "pendente" | "em_diagnostico" | "em_andamento" | "aguardando_peca" | "finalizado" | "cancelado";
+
 export interface OrdemServico {
   id: string;
   numero: number | null;
@@ -273,7 +274,7 @@ export function useOrdensServico() {
         p_data_servico: input.data_servico || new Date().toISOString().split("T")[0],
         p_hora_agendamento: input.hora_agendamento || null,
         p_status: input.status || "pendente",
-        p_valor_mao_de_obra: 0,
+        p_valor_mao_de_obra: input.valor_mao_obra ?? 0,
         p_custo_servico: input.custo_servico ?? 0,
         p_tem_garantia: input.tem_garantia || false,
         p_dias_garantia: input.dias_garantia || 0,

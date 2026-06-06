@@ -154,16 +154,27 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // CRITICAL: Wait for auth to finish loading before doing anything
-    // This prevents the race condition where we check oficinas before auth resolves
+    // If auth is loading, we stay in loading state
     if (authLoading) {
-      // Keep loading state while auth is still loading
       setLoading(true);
       setInitialized(false);
       return;
     }
 
-    // Auth has finished loading, now we can safely check user and fetch oficinas
+    // Check if we are in a public route that doesn't need Oficina context initialization
+    const publicPaths = ['/os/', '/orcamento/', '/portal/', '/agendar/', '/auth', '/reset-password', '/cadastro-concluido', '/instalar', '/termos', '/privacidade', '/ajuda', '/limpar'];
+    const isPublicRoute = publicPaths.some(path => window.location.pathname.startsWith(path)) || window.location.pathname === '/';
+
+    // If no user and it's a public route, we can skip fetching but must mark as initialized
+    if (!user && isPublicRoute) {
+      setOficinas([]);
+      setOficinaAtualState(null);
+      setLoading(false);
+      setInitialized(true);
+      return;
+    }
+
+    // Otherwise (user logged in OR not a public route), fetch normally
     fetchOficinas();
   }, [user, authLoading]);
 

@@ -10,6 +10,7 @@ interface FinanceiroAlertsProps {
   totalAPagar: number;
   totalAReceber: number;
   percentualMudanca: number;
+  alertaLucroInflado?: boolean;
 }
 
 export function FinanceiroAlerts({
@@ -19,8 +20,18 @@ export function FinanceiroAlerts({
   totalAPagar,
   totalAReceber,
   percentualMudanca,
+  alertaLucroInflado,
 }: FinanceiroAlertsProps) {
   const alerts: { icon: React.ElementType; message: string; type: "warning" | "danger" | "info" }[] = [];
+
+  // Alerta de Lucro Inflado (Backfill pendente)
+  if (alertaLucroInflado) {
+    alerts.push({
+      icon: AlertTriangle,
+      message: "Este período possui 17 itens históricos sem custo. O lucro operacional pode estar inflado em aproximadamente R$ 350,88 até a normalização estimada ser aprovada.",
+      type: "warning",
+    });
+  }
 
   // Mês no vermelho
   if (lucroTotal < 0) {

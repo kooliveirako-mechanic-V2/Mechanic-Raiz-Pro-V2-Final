@@ -39,6 +39,8 @@ import { useFinanceiro } from "@/hooks/useFinanceiro";
 import { formatCurrency } from "@/lib/formatters";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useQuery } from "@tanstack/react-query";
+import { getUnifiedSeries } from "@/services/financeiroService";
 import { FinanceiroFormModal } from "@/components/forms/FinanceiroFormModal";
 import { FinanceiroPreFiscalExport } from "@/components/financeiro/FinanceiroPreFiscalExport";
 import { VendaBalcaoDetalheModal } from "@/components/vendas/VendaBalcaoDetalheModal";
@@ -74,28 +76,27 @@ export function MobileFinanceiro() {
   }, [registros]);
 
 
-  // Generate chart data from real data
-  const chartData = useMemo(() => {
-    const months = [];
-    for (let i = 1; i >= 0; i--) {
-      const monthDate = subMonths(new Date(), i);
-      const inicio = startOfMonth(monthDate);
-      const fim = endOfMonth(monthDate);
+  // BLOQUEIO 1: Gráfico usando Fonte Única (RPC get_financeiro_series_unificadas)
+  const { data: chartData = [] } = useQuery({
+    queryKey: ["financeiro-series-mobile", oficinaAtual?.id],
+    queryFn: async () => {
+      if (!oficinaAtual) return [];
+      const inicio = format(subMonths(startOfMonth(new Date()), 5), "yyyy-MM-dd");
+      const fim = format(endOfMonth(new Date()), "yyyy-MM-dd");
       
-      const receita = registros
-        .filter((r) => {
-          const data = new Date(r.data);
-          return data >= inicio && data <= fim && r.tipo === "entrada";
-        })
-        .reduce((sum, r) => sum + Number(r.valor), 0);
-      
-      months.push({
-        month: format(monthDate, "MMM", { locale: ptBR }),
-        receita,
+      const series = await getUnifiedSeries({
+        oficinaId: oficinaAtual.id,
+        inicio,
+        fim
       });
-    }
-    return months;
-  }, [registros]);
+
+      return series.map(s => ({
+        month: s.label,
+        receita: s.entradas_caixa // Mobile Financeiro foca em Fluxo de Caixa (Entradas)
+      }));
+    },
+    enabled: !!oficinaAtual,
+  });
 
   const filteredTransactions = transactions.filter((t) => {
     if (activeTab === "all") return true;

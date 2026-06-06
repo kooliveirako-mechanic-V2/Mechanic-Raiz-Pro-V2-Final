@@ -64,10 +64,12 @@ export function OSFormValoresSection({
   const safePendingItensMaoObra = pendingItensMaoObra || 0;
   const safePendingItensCusto = pendingItensCusto || 0;
   const hasItensSemCusto = pendingItensSemCustoCount > 0;
-  // Total cobrado = mão de obra global + (peças + M.O. itemizada) — sem dupla contagem
-  const totalCobrado = maoDeObraGlobal + safePendingItensTotal;
-  // M.O. consolidada que o cliente vai pagar (avulsa + dos itens)
-  const maoDeObraConsolidada = maoDeObraGlobal + safePendingItensMaoObra;
+  
+  // ALINHAMENTO MATEMÁTICO: Soma e Desconto
+  // O banco agora considera o maior valor entre Mão de Obra Global e a soma da Mão de Obra dos Itens
+  const maoDeObraConsolidada = Math.max(maoDeObraGlobal, safePendingItensMaoObra);
+  const totalCobradoBruto = maoDeObraConsolidada + safePendingItensPecas;
+  const totalCobrado = totalCobradoBruto;
   const lucroConfiavel = !hasItensSemCusto;
   const lucro = totalCobrado - safePendingItensCusto;
 
@@ -108,9 +110,9 @@ export function OSFormValoresSection({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="valor" className="text-sm font-bold text-amber-600">
-                  💰 Mão de Obra {hasItens ? "adicional (opcional)" : ""}
+                  💰 Mão de Obra {hasItens ? "adicional (ou global)" : ""}
                 </Label>
-                {hasItens && maoDeObraGlobal === 0 && (
+                {hasItens && (maoDeObraGlobal === 0 || maoDeObraExpanded) && (
                   <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setMaoDeObraExpanded(false)}>
                     <ChevronUp className="w-3 h-3 mr-1" /> Recolher
                   </Button>
@@ -129,7 +131,7 @@ export function OSFormValoresSection({
               />
               <p className="text-[11px] text-muted-foreground">
                 {hasItens
-                  ? "Use só se quiser cobrar uma mão de obra extra que não está nos itens acima."
+                  ? "Use para cobrar uma mão de obra global ou adicional que não está nos itens."
                   : "Mão de obra cobrada do cliente. Custo das peças vem automaticamente do estoque."}
               </p>
             </div>
@@ -141,14 +143,14 @@ export function OSFormValoresSection({
             >
               <div>
                 <p className="text-sm font-semibold text-muted-foreground">💰 Mão de obra adicional</p>
-                <p className="text-[11px] text-muted-foreground">Os itens já têm mão de obra. Clique se quiser cobrar algo extra.</p>
+                <p className="text-[11px] text-muted-foreground">Clique se quiser cobrar uma mão de obra global ou adicional.</p>
               </div>
               <ChevronDown className="w-4 h-4 text-muted-foreground" />
             </button>
           )}
 
           {/* Resumo financeiro — Peças x Mão de obra consolidada */}
-          {!isEditing && (maoDeObraGlobal > 0 || safePendingItensTotal > 0) && (
+          {(maoDeObraGlobal > 0 || safePendingItensTotal > 0) && (
             <div className="p-3 rounded-xl border-2 border-border bg-muted/50 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Total p/ cliente</span>
@@ -230,7 +232,7 @@ export function OSFormValoresSection({
           </div>
 
           {/* Parcelas */}
-          {showParcelas && totalCobrado > 0 && (
+          {showParcelas && totalCobrado > 0 && !isEditing && (
             <div className="space-y-2 p-3 rounded-xl border-2 border-primary/20 bg-primary/5">
               <Label className="text-xs font-semibold uppercase tracking-wide text-primary">Número de Parcelas</Label>
               <Select value={String(numeroParcelas)} onValueChange={(v) => setNumeroParcelas(parseInt(v))}>

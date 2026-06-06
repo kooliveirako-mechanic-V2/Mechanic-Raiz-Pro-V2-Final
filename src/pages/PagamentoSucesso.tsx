@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { trackFunnelEvent } from '@/lib/funnelTracking';
+import { trackEvent } from '@/lib/tracking';
 
 type PaymentType = 'subscription' | 'orcamento' | 'unknown';
 type VerificationStatus = 'idle' | 'verifying' | 'success' | 'pending' | 'failed';
@@ -45,18 +46,27 @@ export default function PagamentoSucesso() {
   const isSubscription = parsedRef.type === 'subscription';
   const isOrcamento = parsedRef.type === 'orcamento';
 
-  // Fire Google Ads + Meta Pixel conversion on page load
+  // [Fase I] gtag('event','conversion') direto REMOVIDO. A conversão Google Ads
+  // agora é disparada pela tag GTM (trigger: mrp_event_name=payment_succeeded),
+  // e a Meta Pixel Purchase pela tag GTM com Event ID={{DLV - event_id}}.
   useEffect(() => {
-    if (typeof window !== 'undefined' && typeof (window as any).gtag === 'function') {
-      (window as any).gtag('event', 'conversion', {
-        'send_to': 'AW-17892212693/idz9CJyC0uobENX_1dNC',
-        'value': 1.0,
-        'currency': 'BRL',
-        'transaction_id': paymentId || '',
-      });
-    }
-    // [Fase G] Pixel(Purchase) e CAPI(Purchase) REMOVIDOS — Meta agora é
-    // configurado via Event Setup Tool lendo URL/DOM desta página de sucesso.
+    const stableId = paymentId || `${parsedRef.planType || 'unknown'}:${Date.now()}`;
+    trackEvent('payment_succeeded', {
+      eventId: paymentId || undefined,
+      dedupKey: `payment_succeeded:${stableId}`,
+      dedupTtlMs: Number.POSITIVE_INFINITY,
+      params: {
+        transaction_id: paymentId || '',
+        value: 1.0,
+        currency: 'BRL',
+        plan_type: parsedRef.planType,
+        plan_name: parsedRef.planType,
+        payment_method: 'mercadopago',
+        send_to: 'AW-17892212693/idz9CJyC0uobENX_1dNC',
+      },
+    });
+
+
 
 
     if (isSubscription) {

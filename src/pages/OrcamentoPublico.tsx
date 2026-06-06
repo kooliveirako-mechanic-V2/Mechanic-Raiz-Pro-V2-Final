@@ -86,37 +86,73 @@ export default function OrcamentoPublico() {
         let rpcError: any = null;
 
         if (isNumeric) {
-          // Friendly URL: /orcamento/42
+          //Friendly URL: /orcamento/42
           const res = await supabase.rpc("get_public_orcamento_by_numero", { p_numero: parseInt(id, 10) });
           data = res.data;
           rpcError = res.error;
         } else if (isUuid) {
-          // Legacy UUID URL: fetch then redirect
+          // Legacy UUID URL
           const res = await supabase.rpc("get_public_orcamento", { orcamento_id: id });
           data = res.data;
           rpcError = res.error;
-
-          // Redirect to friendly URL if we got a numero
-          if (data && (data as any).numero) {
-            navigate(`/orcamento/${(data as any).numero}`, { replace: true });
-            return;
-          }
         } else {
           setError("Link inválido");
           setLoading(false);
           return;
         }
 
-        if (rpcError) throw rpcError;
-
-        if (!data) {
-          setError("Orçamento não encontrado");
-        } else {
+        if (!rpcError && data) {
+          // Se for UUID mas tiver numero, redireciona para a URL amigável
+          if (isUuid && (data as any).numero) {
+            navigate(`/orcamento/${(data as any).numero}`, { replace: true });
+            return;
+          }
           setOrcamento(data as unknown as PublicOrcamento);
+          setLoading(false);
+          return;
         }
-      } catch (err) {
+
+        // Fallback: SELECT direto (Blindagem contra falhas de RPC)
+        console.log("[OrcamentoPublico] RPC falhou ou não retornou dados, tentando SELECT direto...");
+        let query = supabase
+          .from('orcamentos')
+          .select(`
+            id, numero, titulo, descricao, status, valor_total, custo_total, 
+            desconto, validade, observacoes, created_at,
+            oficina:oficinas(nome, logo_url, telefone, endereco),
+            cliente:clientes(nome, telefone, email),
+            veiculo:veiculos(marca, modelo, placa, ano, tipo),
+            itens:itens_orcamento(id, nome_item, tipo, quantidade, valor_unitario, valor_total)
+          `);
+
+        if (isNumeric) {
+          query = query.eq('numero', parseInt(id, 10));
+        } else {
+          query = query.eq('id', id);
+        }
+
+        const { data: directData, error: directError } = await query.maybeSingle();
+        
+        if (directData && !directError) {
+          console.log("[OrcamentoPublico] Dados recuperados via Fallback Select");
+          const fetchedOrcamento = directData as unknown as PublicOrcamento;
+          // Redireciona para URL amigável se for UUID mas recuperamos o número
+          if (isUuid && fetchedOrcamento.numero) {
+            navigate(`/orcamento/${fetchedOrcamento.numero}`, { replace: true });
+            return;
+          }
+          setOrcamento(fetchedOrcamento);
+          setLoading(false);
+          return;
+        }
+
+        if (rpcError) throw rpcError;
+        if (directError) throw directError;
+        
+        setError("Orçamento não encontrado");
+      } catch (err: any) {
         console.error("Error fetching orcamento:", err);
-        setError("Erro ao carregar orçamento");
+        setError(`Erro ao carregar orçamento: ${err.message || 'Erro desconhecido'}`);
       } finally {
         setLoading(false);
       }

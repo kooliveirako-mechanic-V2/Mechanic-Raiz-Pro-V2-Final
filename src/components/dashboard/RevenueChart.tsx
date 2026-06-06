@@ -78,12 +78,12 @@ export function RevenueChart({ data }: RevenueChartProps) {
 
       <div className="flex items-center justify-center gap-6 mt-4">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-primary" />
-          <span className="text-sm text-muted-foreground">Faturamento</span>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(222, 47%, 20%)" }} />
+          <span className="text-xs text-muted-foreground">Faturamento Bruto</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-accent" />
-          <span className="text-sm text-muted-foreground">Lucro</span>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(24, 95%, 53%)" }} />
+          <span className="text-xs text-muted-foreground">Lucro Real</span>
         </div>
       </div>
     </div>

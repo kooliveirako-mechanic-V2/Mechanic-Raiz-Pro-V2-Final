@@ -155,19 +155,67 @@ export default function OSPublica() {
   // Fetch OS data
   useEffect(() => {
     async function fetchOS() {
-      if (!id) { setError("ID da OS não fornecido"); setLoading(false); return; }
+      if (!id) { 
+        setError("ID da OS não fornecido"); 
+        setLoading(false); 
+        return; 
+      }
+      
       try {
+        console.log("[OSPublica] Buscando OS:", id);
         const isNumero = /^\d+$/.test(id);
-        const { data, error } = isNumero
-          ? await supabase.rpc("get_public_os_by_numero", { os_numero: parseInt(id) })
+        const p_numero = isNumero ? parseInt(id) : null;
+        
+        // Tentativa 1: RPC (Caminho principal)
+        const { data, error: rpcError } = isNumero
+          ? await supabase.rpc("get_public_os_by_numero", { os_numero: p_numero })
           : await supabase.rpc("get_public_os", { os_id: id });
-        if (error) throw error;
-        if (!data) setError("Ordem de serviço não encontrada");
-        else setOs(data as unknown as PublicOS);
-      } catch (err) {
-        console.error("Error fetching OS:", err);
-        setError("Erro ao carregar ordem de serviço");
-      } finally { setLoading(false); }
+          
+        if (!rpcError && data) {
+          setOs(data as unknown as PublicOS);
+          setLoading(false);
+          return;
+        }
+
+        // Tentativa 2: Fallback direto via SELECT (Robusto contra falhas de RPC)
+        console.log("[OSPublica] RPC falhou ou não retornou dados, tentando SELECT direto...");
+        let query = supabase
+          .from('ordens_servico')
+          .select(`
+            id, status, tipo_servico, descricao, data_servico, valor_servico, 
+            desconto, desconto_motivo, tem_garantia, dias_garantia, created_at, 
+            data_conclusao, forma_pagamento, observacoes_conclusao, km_no_servico,
+            oficina:oficinas(nome, logo_url, telefone, endereco),
+            cliente:clientes(nome, telefone, cpf_cnpj, endereco),
+            veiculo:veiculos(marca, modelo, placa, ano, cor, km_atual),
+            itens:itens_os(nome_item, tipo, quantidade, valor_unitario, valor_mao_obra, valor_total)
+          `);
+
+        if (isNumero) {
+          query = query.eq('numero', p_numero);
+        } else {
+          query = query.eq('id', id);
+        }
+
+        const { data: directData, error: directError } = await query.maybeSingle();
+        
+        if (directData && !directError) {
+          console.log("[OSPublica] Dados recuperados via Fallback Select");
+          setOs(directData as unknown as PublicOS);
+          setLoading(false);
+          return;
+        }
+
+        if (rpcError) throw rpcError;
+        if (directError) throw directError;
+        
+        setError("Ordem de serviço não encontrada");
+      } catch (err: any) {
+        console.error("[OSPublica] Erro fatal ao carregar OS:", err);
+        setError(`Erro ao carregar ordem de serviço: ${err.message || 'Erro desconhecido'}`);
+      } finally { 
+        setLoading(false); 
+      }
     }
     fetchOS();
   }, [id]);

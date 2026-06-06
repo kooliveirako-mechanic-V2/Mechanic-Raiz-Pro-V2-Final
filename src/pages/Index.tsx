@@ -151,8 +151,8 @@ export default function Index() {
             )}
             {canViewLucro && (
               <StatCard
-                title="Lucro Mês"
-                value={formatCurrency(stats.lucroMes)}
+                title="Lucro Operacional"
+                value={formatCurrency(stats.lucroOperacionalMes)}
                 icon={TrendingUp}
                 variant="accent"
                 delay={0.06}

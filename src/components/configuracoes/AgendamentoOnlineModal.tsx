@@ -67,9 +67,10 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
     setMsgAprovacao(config.agendamento_online_mensagem_aprovacao);
   }, [config]);
 
+  const PUBLIC_BASE_URL = "https://mechanicraizpro.lovable.app";
   const publicUrl = useMemo(() => {
     if (!slug) return "";
-    return `${window.location.origin}/agendar/${slug}`;
+    return `${PUBLIC_BASE_URL}/agendar/${slug}`;
   }, [slug]);
 
   const slugValido = /^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/.test(slug);
@@ -134,7 +135,7 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
               <Label htmlFor="slug">Endereço público (slug)</Label>
               <div className="flex gap-2">
                 <div className="flex-1 flex items-center rounded-md border bg-background px-3 text-sm">
-                  <span className="text-muted-foreground truncate">{window.location.origin}/agendar/</span>
+                  <span className="text-muted-foreground truncate">{PUBLIC_BASE_URL}/agendar/</span>
                   <Input
                     id="slug"
                     value={slug}

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOficina } from "@/contexts/OficinaContext";
 import { startOfMonth, endOfMonth, format, subMonths } from "date-fns";
+import { getUnifiedMetrics } from "@/services/financeiroService";
 
 export interface DashboardStats {
   servicosHoje: number;
@@ -13,6 +14,15 @@ export interface DashboardStats {
   novosClientesMes: number;
   servicosAtrasados: number;
   estoqueBaixo: number;
+  recebimentosMes: number;
+  lucroCaixaMes: number;
+  lucroOperacionalMes: number;
+  pecasMes: number;
+  servicosMaoObraMes: number;
+  custoPecasMes: number;
+  descontosMes: number;
+  alertaItensSemCusto: boolean;
+  alertaLucroInflado: boolean;
 }
 
 export interface ChartData {
@@ -31,72 +41,107 @@ export interface TopClient {
   nome: string;
   totalServicos: number;
   valorTotal: number;
-}
-
-export interface MonthlyStats {
-  servicos: number;
-  faturamento: number;
-  clientes: number;
+  lucroTotal: number;
 }
 
 /**
- * Dashboard hook otimizado.
- * 
- * PERF FIX: Dados financeiros agora vêm da RPC get_financeiro_resumo
- * (mesma query key "financeiro-resumo") — zero queries extras à tabela financeiro.
- * Queries não-financeiras (clientes, OS, estoque) continuam independentes.
+ * Dashboard hook otimizado - FASE 2.
+ * Consome exclusivamente a fonte única get_metrics_financeiras_unificadas.
  */
 export function useDashboard() {
   const { oficinaAtual } = useOficina();
 
-  // ── Financeiro consolidado (RPC) ──────────────────────────────
-  const { data: finResumo } = useQuery({
-    queryKey: ["financeiro-resumo", oficinaAtual?.id],
+  // ── Fonte Única da Verdade (Mês Atual) ─────────────────────
+  const { data: metrics, isLoading: metricsLoading, error: metricsError } = useQuery({
+    queryKey: ["financeiro-unificado-atual", oficinaAtual?.id],
     queryFn: async () => {
       if (!oficinaAtual) return null;
-      const { data, error } = await supabase.rpc("get_financeiro_resumo", {
-        p_oficina_id: oficinaAtual.id,
-        p_meses_historico: 6,
+      const inicio = format(startOfMonth(new Date()), "yyyy-MM-dd");
+      const fim = format(endOfMonth(new Date()), "yyyy-MM-dd");
+      return await getUnifiedMetrics({
+        oficinaId: oficinaAtual.id,
+        inicio,
+        fim,
       });
-      if (error) throw error;
-      return data as unknown as {
-        mes_atual: { entradas: number; saidas: number };
-        mes_anterior: { entradas: number; saidas: number };
-        mensal: Array<{ mes: string; entradas: number; saidas: number }>;
-      };
     },
     enabled: !!oficinaAtual,
     staleTime: 30_000,
   });
 
-  // ── Stats (non-financial queries) ─────────────────────────────
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["dashboard", "stats", oficinaAtual?.id],
-    queryFn: async (): Promise<Omit<DashboardStats, "faturamentoMes" | "lucroMes" | "prejuizosMes">> => {
-      if (!oficinaAtual) {
-        return {
-          servicosHoje: 0,
-          servicosFinalizadosHoje: 0,
-          totalClientes: 0,
-          novosClientesMes: 0,
-          servicosAtrasados: 0,
-          estoqueBaixo: 0,
-        };
+  // ── Comparativo Mensal (Mês Anterior) ──────────────────────
+  const { data: metricsPrev, isLoading: metricsPrevLoading, error: metricsPrevError } = useQuery({
+    queryKey: ["financeiro-unificado-anterior", oficinaAtual?.id],
+    queryFn: async () => {
+      if (!oficinaAtual) return null;
+      const prevMonth = subMonths(new Date(), 1);
+      const inicio = format(startOfMonth(prevMonth), "yyyy-MM-dd");
+      const fim = format(endOfMonth(prevMonth), "yyyy-MM-dd");
+      return await getUnifiedMetrics({
+        oficinaId: oficinaAtual.id,
+        inicio,
+        fim,
+      });
+    },
+    enabled: !!oficinaAtual,
+    staleTime: 60_000,
+  });
+
+  // ── Dados Históricos (Breakdown 6 meses) ───────────────────
+  // Para manter o gráfico funcionando, buscamos os últimos 6 meses.
+  // Idealmente, a RPC deveria retornar isso em uma única chamada, mas por agora chamamos getUnifiedMetrics para cada mês para garantir a fonte da verdade.
+  const { data: chartData = [], isLoading: chartLoading, error: chartError } = useQuery({
+    queryKey: ["financeiro-unificado-chart", oficinaAtual?.id],
+    queryFn: async () => {
+      if (!oficinaAtual) return [];
+      const data = [];
+      for (let i = 5; i >= 0; i--) {
+        const date = subMonths(new Date(), i);
+        const inicio = format(startOfMonth(date), "yyyy-MM-dd");
+        const fim = format(endOfMonth(date), "yyyy-MM-dd");
+        const m = await getUnifiedMetrics({ oficinaId: oficinaAtual.id, inicio, fim });
+        data.push({
+          mes: format(date, "MMM"),
+          faturamento: m.faturamento.liquido,
+          lucro: m.operacional.lucro_operacional,
+        });
       }
+      return data;
+    },
+    enabled: !!oficinaAtual,
+    staleTime: 60_000,
+  });
+
+  // ── Stats (non-financial queries) ─────────────────────────────
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
+    queryKey: ["dashboard", "stats", oficinaAtual?.id],
+    queryFn: async () => {
+      if (!oficinaAtual) return null;
 
       const hoje = format(new Date(), "yyyy-MM-dd");
       const inicioMes = format(startOfMonth(new Date()), "yyyy-MM-dd");
+      const prevMonth = subMonths(new Date(), 1);
+      const inicioPrev = format(startOfMonth(prevMonth), "yyyy-MM-dd");
+      const fimPrev = format(endOfMonth(prevMonth), "yyyy-MM-dd");
 
-      const [servicosHojeRes, totalClientesRes, novosClientesMesRes, servicosAtrasadosRes, estoqueRes] = await Promise.all([
+      const [
+        servicosHojeRes, 
+        totalClientesRes, 
+        novosClientesMesRes, 
+        servicosAtrasadosRes, 
+        estoqueRes,
+        servicosAtualRes,
+        servicosPrevRes,
+        clientesPrevRes
+      ] = await Promise.all([
         supabase.from("ordens_servico").select("id, status").eq("oficina_id", oficinaAtual.id).eq("data_servico", hoje),
         supabase.from("clientes").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id),
         supabase.from("clientes").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id).gte("created_at", inicioMes),
         supabase.from("ordens_servico").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id).in("status", ["pendente", "em_andamento"]).lt("data_servico", hoje),
         supabase.from("estoque").select("id, quantidade, alerta_minimo").eq("oficina_id", oficinaAtual.id).eq("arquivado", false),
+        supabase.from("ordens_servico").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id).eq("status", "finalizado").gte("data_servico", inicioMes),
+        supabase.from("ordens_servico").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id).eq("status", "finalizado").gte("data_servico", inicioPrev).lte("data_servico", fimPrev),
+        supabase.from("clientes").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id).gte("created_at", inicioPrev).lte("created_at", fimPrev),
       ]);
-
-      if (servicosHojeRes.error) throw servicosHojeRes.error;
-      if (estoqueRes.error) throw estoqueRes.error;
 
       return {
         servicosHoje: servicosHojeRes.data?.length || 0,
@@ -105,6 +150,9 @@ export function useDashboard() {
         novosClientesMes: novosClientesMesRes.count || 0,
         servicosAtrasados: servicosAtrasadosRes.count || 0,
         estoqueBaixo: estoqueRes.data?.filter((item) => item.quantidade <= item.alerta_minimo).length || 0,
+        servicosAtual: servicosAtualRes.count || 0,
+        servicosPrev: servicosPrevRes.count || 0,
+        clientesPrev: clientesPrevRes.count || 0,
       };
     },
     enabled: !!oficinaAtual,
@@ -168,146 +216,89 @@ export function useDashboard() {
 
       const { data, error } = await supabase
         .from("ordens_servico")
-        .select(`cliente_id, valor_servico, cliente:clientes(id, nome), itens_os(valor_total, quantidade, valor_unitario)`)
+        .select(`cliente_id, valor_servico, desconto, custo_servico, cliente:clientes(id, nome), itens_os(quantidade, valor_unitario, custo_unitario, valor_total)`)
         .eq("oficina_id", oficinaAtual.id)
-        .gte("data_servico", inicioMes)
-        .lte("data_servico", fimMes);
+        .eq("status", "finalizado")
+        .gte("data_conclusao", inicioMes)
+        .lte("data_conclusao", fimMes);
+      
       if (error) throw error;
       if (!data) return [];
 
       const grouped = data.reduce((acc, s) => {
-        const clienteId = s.cliente_id;
-        const clienteNome = (s.cliente as any)?.nome || "Cliente";
+        const clienteId = (s as any).cliente_id;
+        const clienteNome = (s as any).cliente?.nome || "Cliente";
         const itens = (s as any).itens_os || [];
-        const totalItens = itens.reduce((sum: number, item: any) =>
-          sum + (item.valor_total ?? ((item.quantidade || 0) * (item.valor_unitario || 0))), 0);
-        // CAUSA RAIZ: valor_servico JÁ inclui itens (via recalcOSTotals). Usar fallback apenas.
-        const valorTotal = (Number(s.valor_servico) || 0) > 0 ? (Number(s.valor_servico) || 0) : totalItens;
+        
+        const faturamentoBruto = Number((s as any).valor_servico || 0);
+        const faturamentoLiquido = faturamentoBruto - Number((s as any).desconto || 0);
+        const custoItens = itens.reduce((sum: number, i: any) => sum + (Number(i.custo_unitario || 0) * Number(i.quantidade || 1)), 0);
+        const lucroOperacional = faturamentoLiquido - custoItens;
 
         if (!acc[clienteId]) {
-          acc[clienteId] = { id: clienteId, nome: clienteNome, totalServicos: 0, valorTotal: 0 };
+          acc[clienteId] = { id: clienteId, nome: clienteNome, totalServicos: 0, valorTotal: 0, lucroTotal: 0 };
         }
         acc[clienteId].totalServicos += 1;
-        acc[clienteId].valorTotal += valorTotal;
+        acc[clienteId].valorTotal += faturamentoLiquido;
+        acc[clienteId].lucroTotal += lucroOperacional;
         return acc;
       }, {} as Record<string, TopClient>);
 
       return Object.values(grouped)
-        .sort((a, b) => b.totalServicos - a.totalServicos)
+        .sort((a, b) => b.lucroTotal - a.lucroTotal)
         .slice(0, 5);
     },
     enabled: !!oficinaAtual,
   });
 
-  // ── Monthly comparison from RPC (zero extra queries) ──────────
-  const { data: monthlyComparisonRaw } = useQuery({
-    queryKey: ["dashboard", "monthlyComparison", oficinaAtual?.id],
-    queryFn: async () => {
-      if (!oficinaAtual) return null;
-
-      const prevMonth = subMonths(new Date(), 1);
-      const inicioRange = format(startOfMonth(prevMonth), "yyyy-MM-dd");
-      const fimRange = format(endOfMonth(new Date()), "yyyy-MM-dd");
-
-      const [servicosData, clientesData] = await Promise.all([
-        supabase
-          .from("ordens_servico")
-          .select("id, data_servico")
-          .eq("oficina_id", oficinaAtual.id)
-          .eq("status", "finalizado")
-          .gte("data_servico", inicioRange)
-          .lte("data_servico", fimRange),
-        supabase
-          .from("clientes")
-          .select("id, created_at")
-          .eq("oficina_id", oficinaAtual.id)
-          .gte("created_at", inicioRange),
-      ]);
-
-      const currentKey = format(new Date(), "yyyy-MM");
-      const prevKey = format(prevMonth, "yyyy-MM");
-
-      const getMonthServicos = (key: string) =>
-        (servicosData.data || []).filter(s => s.data_servico.startsWith(key)).length;
-      const getMonthClientes = (key: string) =>
-        (clientesData.data || []).filter(c => c.created_at.startsWith(key)).length;
-
-      return {
-        servicosCurrentMonth: getMonthServicos(currentKey),
-        servicosPrevMonth: getMonthServicos(prevKey),
-        clientesCurrentMonth: getMonthClientes(currentKey),
-        clientesPrevMonth: getMonthClientes(prevKey),
-      };
-    },
-    enabled: !!oficinaAtual,
-  });
-
-  // ── Derive chart data from RPC mensal breakdown ───────────────
-  const chartData: ChartData[] = (finResumo?.mensal ?? []).map((m) => {
-    const date = new Date(m.mes + "-15"); // mid-month for formatting
-    return {
-      mes: format(date, "MMM"),
-      faturamento: Number(m.entradas) || 0,
-      lucro: (Number(m.entradas) || 0) - (Number(m.saidas) || 0),
-    };
-  });
-
-  // ── Monthly comparison (merge financial from RPC + non-financial) ──
-  const monthlyComparison = monthlyComparisonRaw && finResumo ? {
+  const monthlyComparison = metrics && metricsPrev && stats ? {
     currentMonth: {
-      servicos: monthlyComparisonRaw.servicosCurrentMonth,
-      faturamento: Number(finResumo.mes_atual?.entradas) || 0,
-      clientes: monthlyComparisonRaw.clientesCurrentMonth,
+      servicos: stats.servicosAtual,
+      faturamento: metrics.faturamento.liquido,
+      clientes: stats.novosClientesMes,
     },
     previousMonth: {
-      servicos: monthlyComparisonRaw.servicosPrevMonth,
-      faturamento: Number(finResumo.mes_anterior?.entradas) || 0,
-      clientes: monthlyComparisonRaw.clientesPrevMonth,
+      servicos: stats.servicosPrev,
+      faturamento: metricsPrev.faturamento.liquido,
+      clientes: stats.clientesPrev,
     },
   } : null;
-
-  const faturamentoMes = Number(finResumo?.mes_atual?.entradas) || 0;
-  const saidasMes = Number(finResumo?.mes_atual?.saidas) || 0;
-
-  // Prejuízos do mês (Funcionalidade 2)
-  const { data: prejuizosMes = 0 } = useQuery({
-    queryKey: ["dashboard", "prejuizos-mes", oficinaAtual?.id],
-    queryFn: async () => {
-      if (!oficinaAtual) return 0;
-      const inicio = format(startOfMonth(new Date()), "yyyy-MM-dd");
-      const fim = format(endOfMonth(new Date()), "yyyy-MM-dd");
-      const { data, error } = await supabase
-        .from("financeiro")
-        .select("valor")
-        .eq("oficina_id", oficinaAtual.id)
-        .eq("tipo", "saida")
-        .eq("categoria", "prejuizo")
-        .gte("data", inicio)
-        .lte("data", fim);
-      if (error) return 0;
-      return (data || []).reduce((s, r: any) => s + Number(r.valor || 0), 0);
-    },
-    enabled: !!oficinaAtual,
-    staleTime: 30_000,
-  });
 
   return {
     stats: {
       servicosHoje: stats?.servicosHoje ?? 0,
       servicosFinalizadosHoje: stats?.servicosFinalizadosHoje ?? 0,
-      faturamentoMes,
-      lucroMes: faturamentoMes - saidasMes,
-      prejuizosMes,
       totalClientes: stats?.totalClientes ?? 0,
       novosClientesMes: stats?.novosClientesMes ?? 0,
       servicosAtrasados: stats?.servicosAtrasados ?? 0,
       estoqueBaixo: stats?.estoqueBaixo ?? 0,
+      
+      // MÉTRICAS UNIFICADAS (FASE 2)
+      faturamentoMes: metrics?.faturamento.liquido ?? 0,
+      recebimentosMes: metrics?.caixa.recebido_vinculado_competencia ?? 0,
+      lucroCaixaMes: metrics?.caixa.lucro_caixa_oficina_periodo ?? 0,
+      lucroOperacionalMes: metrics?.operacional.lucro_operacional ?? 0,
+      pecasMes: metrics?.categorias.pecas.liquido ?? 0,
+      servicosMaoObraMes: metrics?.categorias.servicos.liquido ?? 0,
+      custoPecasMes: metrics?.operacional.custo_pecas ?? 0,
+      descontosMes: metrics?.faturamento.descontos ?? 0,
+      alertaItensSemCusto: metrics?.auditoria.total_itens_livres_sem_custo > 0,
+      alertaLucroInflado: metrics?.auditoria.alerta_lucro_inflado ?? false,
+      
+      lucroMes: metrics?.operacional.lucro_operacional ?? 0,
+      prejuizosMes: metrics?.caixa.saidas_oficina_periodo ?? 0,
     },
     chartData,
+    monthlyComparison,
     recentServices,
     topServices,
-    monthlyComparison,
     topClients,
-    isLoading: statsLoading || recentLoading,
+    error: metricsError || metricsPrevError || chartError || statsError,
+    isLoading: statsLoading || recentLoading || metricsLoading || metricsPrevLoading || chartLoading,
   };
+}
+
+// Helper para capturar erros específicos (opcional)
+function useDashboardError(queries: any[]) {
+  return queries.find(q => q.isError)?.error;
 }

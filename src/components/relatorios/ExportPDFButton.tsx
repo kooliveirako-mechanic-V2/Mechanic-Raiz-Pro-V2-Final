@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatCurrency } from "@/lib/formatters";
+import { getUnifiedMetrics } from "@/services/financeiroService";
 
 export function ExportPDFButton() {
   const { oficinaAtual } = useOficina();
@@ -24,18 +25,19 @@ export function ExportPDFButton() {
       const fim = format(endOfMonth(now), "yyyy-MM-dd");
       const mesLabel = format(now, "MMMM 'de' yyyy", { locale: ptBR });
 
-      // Fetch OS data and financial summary in parallel (RPC consolidada)
-      const [osRes, finResumo, servRes, prejRes] = await Promise.all([
+      // Fetch data exclusively from Unified Source (FASE 2)
+      const [metrics, osRes, servRes] = await Promise.all([
+        getUnifiedMetrics({
+          oficinaId: oficinaAtual.id,
+          inicio,
+          fim,
+        }),
         supabase
           .from("ordens_servico")
-          .select("id, valor_servico, status, tipo_servico")
+          .select("id, status")
           .eq("oficina_id", oficinaAtual.id)
           .gte("data_servico", inicio)
           .lte("data_servico", fim),
-        supabase.rpc("get_financeiro_resumo", {
-          p_oficina_id: oficinaAtual.id,
-          p_meses_historico: 1,
-        }),
         supabase
           .from("ordens_servico")
           .select("tipo_servico")
@@ -43,32 +45,23 @@ export function ExportPDFButton() {
           .eq("status", "finalizado")
           .gte("data_servico", inicio)
           .lte("data_servico", fim),
-        supabase
-          .from("financeiro")
-          .select("valor, categoria")
-          .eq("oficina_id", oficinaAtual.id)
-          .eq("tipo", "saida")
-          .gte("data", inicio)
-          .lte("data", fim),
       ]);
 
       const os = osRes.data || [];
-      const resumo = finResumo.data as any;
       const servicos = servRes.data || [];
-      const saidasRows = (prejRes.data || []) as Array<{ valor: number; categoria: string }>;
 
       const totalOS = os.length;
       const osFinalizadas = os.filter(o => o.status === "finalizado").length;
-      const entradas = Number(resumo?.mes_atual?.entradas) || 0;
-      const saidas = Number(resumo?.mes_atual?.saidas) || 0;
-      const prejuizos = saidasRows
-        .filter(r => r.categoria === "prejuizo")
-        .reduce((s, r) => s + Number(r.valor || 0), 0);
-      const comissoes = saidasRows
-        .filter(r => r.categoria === "comissao")
-        .reduce((s, r) => s + Number(r.valor || 0), 0);
-      const despesasOperacionais = saidas - prejuizos - comissoes;
-      const lucro = entradas - despesasOperacionais - comissoes - prejuizos;
+      
+      // Métricas Unificadas
+      const faturamentoBruto = metrics.faturamento.bruto;
+      const descontos = metrics.faturamento.descontos;
+      const faturamentoLiquido = metrics.faturamento.liquido;
+      const custoPecas = metrics.operacional.custo_pecas;
+      const lucroOperacional = metrics.operacional.lucro_operacional;
+      const recebimentos = metrics.caixa.recebido_vinculado_competencia;
+      const saidas = metrics.caixa.saidas_oficina_periodo;
+      const lucroCaixa = metrics.caixa.lucro_caixa_oficina_periodo;
 
       // Top 5 services
       const servicoMap: Record<string, number> = {};
@@ -107,21 +100,31 @@ export function ExportPDFButton() {
 
       doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
-      doc.text("Resumo do Mês", 25, y);
+      doc.text("Resumo de Operações", 25, y);
       y += 10;
 
-      addLine("Total de OS no mês:", String(totalOS));
+      addLine("Total de OS no período:", String(totalOS));
       addLine("OS finalizadas:", String(osFinalizadas));
       y += 4;
-      addLine("Faturamento (entradas):", formatCurrency(entradas), true);
-      addLine("Despesas operacionais:", formatCurrency(despesasOperacionais));
-      if (comissoes > 0) addLine("Comissões pagas:", formatCurrency(comissoes));
-      if (prejuizos > 0) addLine("⚠ Prejuízos / Retrabalho:", formatCurrency(prejuizos));
-      y += 2;
-      doc.setDrawColor(200);
+      
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Resumo Financeiro (Fonte Única)", 25, y);
+      y += 10;
+
+      addLine("Faturamento Bruto:", formatCurrency(faturamentoBruto));
+      addLine("Descontos Concedidos:", formatCurrency(descontos));
+      addLine("FATURAMENTO LÍQUIDO:", formatCurrency(faturamentoLiquido), true);
+      y += 4;
+      addLine("Custo de Peças (CMV):", formatCurrency(custoPecas));
+      addLine("LUCRO OPERACIONAL:", formatCurrency(lucroOperacional), true);
+      y += 4;
+      doc.setDrawColor(230);
       doc.line(25, y, pageWidth - 25, y);
       y += 6;
-      addLine("LUCRO LÍQUIDO:", formatCurrency(lucro), true);
+      addLine("Recebimentos (Entradas):", formatCurrency(recebimentos));
+      addLine("Saídas de Caixa:", formatCurrency(saidas));
+      addLine("LUCRO DE CAIXA:", formatCurrency(lucroCaixa), true);
 
       // Top services table
       if (top5.length > 0) {

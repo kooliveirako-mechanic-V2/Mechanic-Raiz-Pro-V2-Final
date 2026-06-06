@@ -75,13 +75,20 @@ export default function AgendamentoPublico() {
     if (!slug) return;
     (async () => {
       setLoading(true);
-      const { data, error } = await supabase.rpc("get_oficina_publica_by_slug" as any, { p_slug: slug });
-      if (error || !data) {
+      try {
+        const { data, error } = await supabase.rpc("get_oficina_publica_by_slug" as any, { p_slug: slug });
+        if (error) {
+          console.error("[AgendamentoPublico] Erro RPC:", error);
+          setOficina(null);
+        } else {
+          setOficina(data as unknown as OficinaPublica);
+        }
+      } catch (err) {
+        console.error("[AgendamentoPublico] Erro fatal:", err);
         setOficina(null);
-      } else {
-        setOficina(data as unknown as OficinaPublica);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, [slug]);
 

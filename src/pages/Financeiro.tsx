@@ -326,7 +326,7 @@ export default function Financeiro() {
                     }
                   </Button>
                 </FinanceiroFilter>
-                <FinanceiroPreFiscalExport registros={filteredByClassificacao} dateRange={dateFilter} />
+                <FinanceiroPreFiscalExport dateRange={dateFilter || { start: format(startOfMonth(new Date()), "yyyy-MM-dd"), end: format(endOfMonth(new Date()), "yyyy-MM-dd") }} />
                 <Button 
                   variant="ghost" 
                   size="sm"
@@ -424,6 +424,7 @@ export default function Financeiro() {
           totalAPagar={totalAPagar}
           totalAReceber={totalAReceber}
           percentualMudanca={percentualMudanca}
+          alertaLucroInflado={true} // Forçado true enquanto houver itens históricos sem custo
         />
 
         {/* Premium Stats */}

@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PasswordRecoveryModal } from "@/components/auth/PasswordRecoveryModal";
 import { AuthFormTabs } from "@/components/auth/AuthFormTabs";
-import { trackEvent, notifyMetaUrlChange } from "@/lib/tracking";
+import { trackEvent } from "@/lib/tracking";
 import { normalizeSource } from "@/lib/oracleWpp";
 
 export default function Auth() {
@@ -81,6 +81,11 @@ export default function Auth() {
   // Redirect if already logged in (auto-redirect to invite page if present)
   useEffect(() => {
     if (!authLoading && user) {
+      // If we are on a public OS/Orcamento route, don't redirect to dashboard
+      const publicPaths = ['/os/', '/orcamento/', '/portal/', '/agendar/'];
+      const isPublicRoute = publicPaths.some(path => window.location.pathname.startsWith(path));
+      if (isPublicRoute) return;
+
       const params = new URLSearchParams(window.location.search);
       const inviteToken = params.get("invite") || sessionStorage.getItem("pending_invite_token");
       if (inviteToken) {
@@ -290,16 +295,23 @@ export default function Auth() {
         });
         return;
       }
-      url.searchParams.set('intencao', 'teste_gratis');
-      window.history.pushState({ intencao: 'teste_gratis' }, '', url.toString());
+
+      // Usa navigate para atualizar URL de forma controlada
+      const params = new URLSearchParams(window.location.search);
+      params.set('intencao', 'teste_gratis');
+      navigate({
+        pathname: window.location.pathname,
+        search: params.toString()
+      }, { replace: true });
+
       // [GTM] evento dedicado p/ generate_lead — dispara 1x por sessão, sem depender de page_view+URL contains.
       trackEvent('trial_intent_generic', {
         params: { intent: 'teste_gratis', source: 'generic_cta' },
         dedupKey: 'trial_intent_generic:session',
         dedupTtlMs: Infinity,
       });
-      // [Fase H5] avisa Pixel da nova URL → Event Setup Tool reavalia "URL contains intencao=teste_gratis"
-      notifyMetaUrlChange();
+      // [Fase I] Disparo fbq direto removido — Meta Pixel agora é alimentado
+      // exclusivamente pelo GTM via dataLayer (trackEvent acima já empurrou).
     } catch {}
   };
   const scrollToSignup = () => { markGenericTrialIntent(); setActiveTab("register"); heroRef.current?.scrollIntoView({ behavior: "smooth" }); };

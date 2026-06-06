@@ -2,13 +2,16 @@ import { OrdemServico } from "@/hooks/useOrdensServico";
 import { Orcamento, ItemOrcamento } from "@/hooks/useOrcamentos";
 import { ItemOS } from "@/hooks/useItensOS";
 import { formatCurrency } from "@/lib/formatters";
+import { supabase } from "@/integrations/supabase/client";
 
 function getBaseUrl(): string {
-  if (typeof window !== "undefined") {
+  // BLINDAGEM MÁXIMA: Sincronizado com src/utils/url.ts para garantir 100% de certeza.
+  if (window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1')) {
     return window.location.origin;
   }
-  return "https://mechanicraizpro.com.br";
+  return "https://www.mechanicraizpro.com.br";
 }
+
 
 export function getPublicOSLink(ordem: OrdemServico): string {
   const identifier = (ordem as any).numero || ordem.id;
@@ -252,17 +255,35 @@ export function generateWhatsAppLink(phone: string, message: string): string {
   return `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
 }
 
-export function openWhatsAppOS(
+export async function openWhatsAppOS(
   ordem: OrdemServico,
   oficinaNome: string,
   telefoneOficina?: string | null,
   itensOS: ItemOS[] = [],
   manualPhone?: string,
-): void {
-  const message = formatOSMessage(ordem, oficinaNome, itensOS);
-  
+): Promise<void> {
+  // CAUSA RAIZ: alguns callers (lista de Serviços, modal de edição) não passavam
+  // os itens, então a mensagem saía só com o valor total. Quando vier vazio,
+  // buscamos do banco antes de gerar a mensagem.
+  let itens = itensOS;
+  if ((!itens || itens.length === 0) && ordem?.id) {
+    try {
+      const { data } = await supabase
+        .from("itens_os")
+        .select("*")
+        .eq("ordem_servico_id", ordem.id);
+      if (data && data.length > 0) {
+        itens = data as unknown as ItemOS[];
+      }
+    } catch (err) {
+      console.warn("[whatsapp] falha ao buscar itens da OS, seguindo sem lista", err);
+    }
+  }
+
+  const message = formatOSMessage(ordem, oficinaNome, itens);
+
   const phone = manualPhone || ordem.cliente?.telefone || telefoneOficina || "";
-  
+
   if (phone) {
     const link = generateWhatsAppLink(phone, message);
     window.open(link, "_blank");
@@ -271,6 +292,7 @@ export function openWhatsAppOS(
     alert("Mensagem copiada! Cole no WhatsApp para enviar.");
   }
 }
+
 
 export function openWhatsAppOrcamento(
   orcamento: Orcamento,

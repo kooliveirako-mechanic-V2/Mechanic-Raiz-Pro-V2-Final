@@ -67,10 +67,11 @@ export function OSVisualizacaoModal({
 
   const isMoto = ordem.veiculo?.tipo === "moto";
   // CAUSA RAIZ: valor_servico JÁ inclui itens (via recalcOSTotals). Não somar novamente.
-  const subtotalBruto = (ordem.valor_servico || 0) > 0 ? (ordem.valor_servico || 0) : totalItens;
+  // P1 FIX: Garantir que o valor exibido é o valor real cobrado (Total Mestre).
+  const subtotalBruto = Number(ordem.valor_servico || 0);
   const descontoOS = Number((ordem as any).desconto || 0);
   const descontoMotivo = (ordem as any).desconto_motivo as string | null | undefined;
-  const valorTotal = Math.max(subtotalBruto - descontoOS, 0);
+  const valorTotal = Math.max(subtotalBruto - (descontoOS > 0 ? descontoOS : 0), 0);
   const maoDeObraGlobal = Number((ordem as any).valor_mao_obra || 0);
   const maoDeObraItemizada = itens.reduce((acc, item) => acc + Number(item.valor_mao_obra || 0), 0);
   const maoDeObraAvulsa = Math.max(0, maoDeObraGlobal - maoDeObraItemizada);

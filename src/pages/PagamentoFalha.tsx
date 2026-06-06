@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { XCircle, Home, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { trackEvent } from '@/lib/tracking';
 
 
 export default function PagamentoFalha() {
@@ -17,21 +18,21 @@ export default function PagamentoFalha() {
   const isSubscription = externalReference?.startsWith('subscription:');
   const planType = isSubscription ? externalReference?.split(':')[2] : undefined;
 
-  // Tracking de pagamento recusado — [Fase G] fbq REMOVIDO. Mantém apenas
-  // gtag (Google Ads) que continua sendo disparado direto.
+  // [Fase I] gtag('event','payment_failed') direto REMOVIDO. Agora dispara
+  // exclusivamente via dataLayer → GTM, com Event ID={{DLV - event_id}}.
   useEffect(() => {
-    try {
-      if (typeof window !== 'undefined' && (window as any).gtag) {
-        (window as any).gtag('event', 'payment_failed', {
-          send_to: 'AW-17892212693',
-          transaction_id: paymentId || '',
-          plan_type: planType,
-        });
-      }
-    } catch (e) {
-      console.error('[PagamentoFalha] gtag error', e);
-    }
-    // [Fase G] CAPI(PaymentFailed) REMOVIDO — Meta agora via Event Setup Tool.
+    const stableId = paymentId || `${planType || 'unknown'}:${status}:${Date.now()}`;
+    trackEvent('payment_failed', {
+      eventId: paymentId || undefined,
+      dedupKey: `payment_failed:${stableId}`,
+      dedupTtlMs: Number.POSITIVE_INFINITY,
+      params: {
+        transaction_id: paymentId || '',
+        plan_type: planType,
+        status,
+        send_to: 'AW-17892212693',
+      },
+    });
   }, [paymentId, status, planType, externalReference]);
 
   const handleTryAgain = () => {

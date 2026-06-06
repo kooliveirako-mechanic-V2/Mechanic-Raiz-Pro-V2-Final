@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { OrdemServico } from "@/hooks/useOrdensServico";
 import { useItensOS } from "@/hooks/useItensOS";
-import { openWhatsAppOS, getPublicOSLink } from "@/lib/whatsapp";
+import { openWhatsAppOS } from "@/lib/whatsapp";
+import { getPublicOSLink } from "@/utils/url";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatCurrency } from "@/lib/formatters";
@@ -82,7 +83,7 @@ export function OSFinalizadaModal({
   };
 
   const handleCopyLink = () => {
-    const url = getPublicOSLink(ordem);
+    const url = getPublicOSLink((ordem as any).numero || ordem.id);
     navigator.clipboard.writeText(url);
     toast.success("Link copiado!", {
       description: "Envie para o cliente acompanhar o serviço.",
@@ -90,7 +91,7 @@ export function OSFinalizadaModal({
   };
 
   const handleOpenPublic = () => {
-    window.open(`/os/${(ordem as any).numero || ordem.id}`, "_blank");
+    window.open(getPublicOSLink((ordem as any).numero || ordem.id), "_blank");
   };
 
   const formatDate = (date: string) => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useItensOS, ItemOS } from "@/hooks/useItensOS";
@@ -6,6 +6,7 @@ import { ServicoRapidoModal } from "./ServicoRapidoModal";
 import { Zap, Trash2, Package, Wrench, Plus, ChevronDown, ChevronUp, DollarSign, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { markChildModalClosed, markChildModalOpen } from "@/lib/childModalLock";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +29,18 @@ export function ItensOSList({ ordemServicoId, className }: ItensOSListProps) {
   const [editingItem, setEditingItem] = useState<ItemOS | null>(null);
   const [expanded, setExpanded] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // Ref espelhada para o cleanup ler o valor atual (closure de deps=[] capturaria stale).
+  const modalOpenRef = useRef(false);
+  useEffect(() => { modalOpenRef.current = modalOpen; }, [modalOpen]);
+
+  // Garante que o lock seja liberado se o componente desmontar com o modal aberto.
+  useEffect(() => {
+    return () => {
+      if (modalOpenRef.current) markChildModalClosed();
+    };
+  }, []);
+
 
   const handleAddItem = async (item: {
     nome_item: string;
@@ -272,6 +285,8 @@ export function ItensOSList({ ordemServicoId, className }: ItensOSListProps) {
       <ServicoRapidoModal
         open={modalOpen}
         onOpenChange={(open) => {
+          if (open) markChildModalOpen();
+          else markChildModalClosed();
           setModalOpen(open);
           if (!open) setEditingItem(null);
         }}

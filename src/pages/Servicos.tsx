@@ -28,6 +28,7 @@ import { OSFinalizadaModal } from "@/components/servicos/OSFinalizadaModal";
 import { KanbanFinalizarModal } from "@/components/servicos/KanbanFinalizarModal";
 import { OSStatusTimeline } from "@/components/servicos/OSStatusTimeline";
 import { format } from "date-fns";
+import { getPublicOSLink } from "@/utils/url";
 import { motion } from "framer-motion";
 import { PageLoader } from "@/components/ui/loading-states";
 import { useOficina } from "@/contexts/OficinaContext";
@@ -39,6 +40,11 @@ import { getTimeSinceUpdate } from "@/lib/osUtils";
 
 // Labels dinâmicos serão aplicados via hook useOficinaLabels
 const getStatusConfig = (isAutoEletrica: boolean): Record<StatusOS, { label: string; icon: typeof Clock; className: string }> => ({
+  aberto: {
+    label: "Aberto",
+    icon: Clock,
+    className: "bg-blue-500/15 text-blue-600 border-blue-500/30",
+  },
   pendente: {
     label: isAutoEletrica ? "Aguardando Análise" : "Aguardando",
     icon: Clock,
@@ -399,7 +405,7 @@ export default function Servicos() {
 
   const handleCopyLink = (e: React.MouseEvent, ordem: OrdemServico) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/os/${ordem.numero || ordem.id}`;
+    const url = getPublicOSLink(String(ordem.numero || ordem.id));
     navigator.clipboard.writeText(url);
     toast.success("Link copiado!", {
       description: "Envie para o cliente acompanhar.",
@@ -786,37 +792,41 @@ export default function Servicos() {
         </div>
       </MainLayout>
 
-      {/* FIX removeChild: Montagem condicional do OrdemServicoFormModal.
+      {/* FIX removeChild: Montagem condicional dos modais.
           Quando modalOpen=true, o componente monta fresco com open=true,
           eliminando a transição false→true que causava conflito de portal. */}
       {modalOpen && <OrdemServicoFormModal open={true} onOpenChange={handleCloseModal} ordem={ordemEdit} />}
-      <OSRapidaModal open={osRapidaOpen} onOpenChange={setOsRapidaOpen} />
-      <OSVisualizacaoModal 
-        open={osVisualizacaoOpen} 
-        onOpenChange={setOsVisualizacaoOpen} 
-        ordem={ordemVisualizacao}
-        oficinaNome={oficinaAtual?.nome}
-        oficinaTelefone={oficinaAtual?.telefone}
-        onEdit={() => {
-          setOsVisualizacaoOpen(false);
-          if (ordemVisualizacao) {
-            handleOpenModal(ordemVisualizacao);
-          }
-        }}
-      />
-      <OSFinalizadaModal
-        open={osFinalizadaOpen}
-        onOpenChange={setOsFinalizadaOpen}
-        ordem={ordemFinalizada}
-        oficinaNome={oficinaAtual?.nome}
-        oficinaTelefone={oficinaAtual?.telefone}
-        onEdit={() => {
-          setOsFinalizadaOpen(false);
-          if (ordemFinalizada) {
-            handleOpenModal(ordemFinalizada);
-          }
-        }}
-      />
+      {osRapidaOpen && <OSRapidaModal open={osRapidaOpen} onOpenChange={setOsRapidaOpen} />}
+      {osVisualizacaoOpen && (
+        <OSVisualizacaoModal 
+          open={true} 
+          onOpenChange={setOsVisualizacaoOpen} 
+          ordem={ordemVisualizacao}
+          oficinaNome={oficinaAtual?.nome}
+          oficinaTelefone={oficinaAtual?.telefone}
+          onEdit={() => {
+            setOsVisualizacaoOpen(false);
+            if (ordemVisualizacao) {
+              handleOpenModal(ordemVisualizacao);
+            }
+          }}
+        />
+      )}
+      {osFinalizadaOpen && (
+        <OSFinalizadaModal
+          open={true}
+          onOpenChange={setOsFinalizadaOpen}
+          ordem={ordemFinalizada}
+          oficinaNome={oficinaAtual?.nome}
+          oficinaTelefone={oficinaAtual?.telefone}
+          onEdit={() => {
+            setOsFinalizadaOpen(false);
+            if (ordemFinalizada) {
+              handleOpenModal(ordemFinalizada);
+            }
+          }}
+        />
+      )}
 
       {/* Modal de confirmação para finalizar via Kanban */}
       <KanbanFinalizarModal

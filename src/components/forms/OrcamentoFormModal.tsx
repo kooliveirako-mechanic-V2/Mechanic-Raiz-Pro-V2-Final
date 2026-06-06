@@ -41,6 +41,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrcamentoPagamento } from "@/hooks/useOrcamentoPagamento";
+import { getPublicOrcamentoLink } from "@/utils/url";
 import { format } from "date-fns";
 import { handleFormKeyDown } from "@/lib/formGuard";
 import { useAutoSave } from "@/hooks/useAutoSave";
@@ -407,7 +408,8 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
 
   const handleCopyLink = () => {
     if (!orcamento) return;
-    const url = `${window.location.origin}/orcamento/${orcamento.numero || orcamento.id}`;
+    // CAUSA RAIZ: Usava window.location.origin diretamente.
+    const url = getPublicOrcamentoLink(orcamento.numero || orcamento.id);
     navigator.clipboard.writeText(url);
     toast.success("Link copiado!", { description: "Envie para o cliente visualizar o orçamento" });
   };

@@ -550,6 +550,8 @@ export type Database = {
           tipo: string
           updated_at: string | null
           valor: number
+          valor_mao_obra: number | null
+          valor_pecas: number | null
         }
         Insert: {
           categoria?: string
@@ -578,6 +580,8 @@ export type Database = {
           tipo: string
           updated_at?: string | null
           valor: number
+          valor_mao_obra?: number | null
+          valor_pecas?: number | null
         }
         Update: {
           categoria?: string
@@ -606,6 +610,8 @@ export type Database = {
           tipo?: string
           updated_at?: string | null
           valor?: number
+          valor_mao_obra?: number | null
+          valor_pecas?: number | null
         }
         Relationships: [
           {
@@ -649,6 +655,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ordens_servico"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financeiro_ordem_servico_id_fkey"
+            columns: ["ordem_servico_id"]
+            isOneToOne: false
+            referencedRelation: "v_auditoria_financeira_os"
+            referencedColumns: ["os_id"]
           },
         ]
       }
@@ -1029,6 +1042,13 @@ export type Database = {
             referencedRelation: "ordens_servico"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "itens_os_ordem_servico_id_fkey"
+            columns: ["ordem_servico_id"]
+            isOneToOne: false
+            referencedRelation: "v_auditoria_financeira_os"
+            referencedColumns: ["os_id"]
+          },
         ]
       }
       itens_venda_balcao: {
@@ -1108,6 +1128,130 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      log_backfill_custo_itens_os: {
+        Row: {
+          criterio_usado: string
+          custo_anterior: number | null
+          custo_novo: number
+          estoque_id: string | null
+          executado_em: string | null
+          executado_por: string | null
+          id: string
+          impacto_total: number | null
+          item_os_id: string
+          lote_id: string
+          observacao: string | null
+          ordem_servico_id: string
+          quantidade: number | null
+          revertido: boolean | null
+          revertido_em: string | null
+        }
+        Insert: {
+          criterio_usado: string
+          custo_anterior?: number | null
+          custo_novo: number
+          estoque_id?: string | null
+          executado_em?: string | null
+          executado_por?: string | null
+          id?: string
+          impacto_total?: number | null
+          item_os_id: string
+          lote_id: string
+          observacao?: string | null
+          ordem_servico_id: string
+          quantidade?: number | null
+          revertido?: boolean | null
+          revertido_em?: string | null
+        }
+        Update: {
+          criterio_usado?: string
+          custo_anterior?: number | null
+          custo_novo?: number
+          estoque_id?: string | null
+          executado_em?: string | null
+          executado_por?: string | null
+          id?: string
+          impacto_total?: number | null
+          item_os_id?: string
+          lote_id?: string
+          observacao?: string | null
+          ordem_servico_id?: string
+          quantidade?: number | null
+          revertido?: boolean | null
+          revertido_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "log_backfill_custo_itens_os_estoque_id_fkey"
+            columns: ["estoque_id"]
+            isOneToOne: false
+            referencedRelation: "estoque"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "log_backfill_custo_itens_os_item_os_id_fkey"
+            columns: ["item_os_id"]
+            isOneToOne: false
+            referencedRelation: "itens_os"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "log_backfill_custo_itens_os_ordem_servico_id_fkey"
+            columns: ["ordem_servico_id"]
+            isOneToOne: false
+            referencedRelation: "ordens_servico"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "log_backfill_custo_itens_os_ordem_servico_id_fkey"
+            columns: ["ordem_servico_id"]
+            isOneToOne: false
+            referencedRelation: "v_auditoria_financeira_os"
+            referencedColumns: ["os_id"]
+          },
+        ]
+      }
+      log_financeiro_estoque_audit: {
+        Row: {
+          acao: string
+          created_at: string | null
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          entidade_id: string
+          entidade_tipo: string
+          id: string
+          oficina_id: string
+        }
+        Insert: {
+          acao: string
+          created_at?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          entidade_id: string
+          entidade_tipo: string
+          id?: string
+          oficina_id: string
+        }
+        Update: {
+          acao?: string
+          created_at?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          entidade_id?: string
+          entidade_tipo?: string
+          id?: string
+          oficina_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "log_financeiro_estoque_audit_oficina_id_fkey"
+            columns: ["oficina_id"]
+            isOneToOne: false
+            referencedRelation: "oficinas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notificacoes: {
         Row: {
@@ -1615,6 +1759,13 @@ export type Database = {
             referencedRelation: "ordens_servico"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "os_sinais_ordem_servico_id_fkey"
+            columns: ["ordem_servico_id"]
+            isOneToOne: false
+            referencedRelation: "v_auditoria_financeira_os"
+            referencedColumns: ["os_id"]
+          },
         ]
       }
       pagamentos: {
@@ -1766,6 +1917,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ordens_servico"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parcelas_pagamento_ordem_servico_id_fkey"
+            columns: ["ordem_servico_id"]
+            isOneToOne: false
+            referencedRelation: "v_auditoria_financeira_os"
+            referencedColumns: ["os_id"]
           },
         ]
       }
@@ -2351,7 +2509,19 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_auditoria_financeira_os: {
+        Row: {
+          desconto: number | null
+          divergencia: number | null
+          os_id: string | null
+          os_numero: number | null
+          status: string | null
+          total_financeiro_real: number | null
+          valor_bruto: number | null
+          valor_liquido_esperado: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_team_invite: { Args: { _token: string }; Returns: Json }
@@ -2506,7 +2676,7 @@ export type Database = {
       criar_venda_balcao: {
         Args: {
           p_cliente_id?: string
-          p_forma_pagamento?: string
+          p_forma_pagamento: string
           p_forma_pagamento_id?: string
           p_itens: Json
           p_observacao?: string
@@ -2527,6 +2697,7 @@ export type Database = {
           p_numero_parcelas?: number
           p_observacoes_conclusao?: string
           p_os_id: string
+          p_valor_mao_obra?: number
         }
         Returns: Json
       }
@@ -2557,11 +2728,35 @@ export type Database = {
         Returns: Json
       }
       get_client_portal_data: { Args: { p_token: string }; Returns: Json }
+      get_financeiro_rankings_unificados: {
+        Args: {
+          p_data_fim: string
+          p_data_inicio: string
+          p_oficina_id: string
+        }
+        Returns: Json
+      }
       get_financeiro_resumo: {
         Args: { p_meses_historico?: number; p_oficina_id: string }
         Returns: Json
       }
+      get_financeiro_series_unificadas: {
+        Args: {
+          p_data_fim: string
+          p_data_inicio: string
+          p_oficina_id: string
+        }
+        Returns: Json
+      }
       get_invite_info: { Args: { _token: string }; Returns: Json }
+      get_metrics_financeiras_unificadas: {
+        Args: {
+          p_data_fim: string
+          p_data_inicio: string
+          p_oficina_id: string
+        }
+        Returns: Json
+      }
       get_oficina_features: {
         Args: { _oficina_id: string }
         Returns: {
@@ -2585,6 +2780,10 @@ export type Database = {
       get_oficina_publica_by_slug: { Args: { p_slug: string }; Returns: Json }
       get_os_with_financial_visibility: {
         Args: { p_os_id: string }
+        Returns: Json
+      }
+      get_pre_fiscal_unificado: {
+        Args: { p_fim: string; p_inicio: string; p_oficina_id: string }
         Returns: Json
       }
       get_public_orcamento: { Args: { orcamento_id: string }; Returns: Json }
@@ -2653,10 +2852,10 @@ export type Database = {
         Args: { p_oficina_id: string }
         Returns: undefined
       }
-      reabrir_os_atomica: {
-        Args: { p_motivo?: string; p_os_id: string }
-        Returns: Json
-      }
+      reabrir_os_atomica:
+        | { Args: { p_os_id: string }; Returns: Json }
+        | { Args: { p_motivo?: string; p_os_id: string }; Returns: Json }
+      reabrir_os_v2: { Args: { p_os_id: string }; Returns: Json }
       recalcular_totais_orcamento: {
         Args: { p_orcamento_id: string }
         Returns: undefined
@@ -2716,7 +2915,13 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "proprietario" | "administrador" | "funcionario"
+      app_role:
+        | "proprietario"
+        | "administrador"
+        | "funcionario"
+        | "master"
+        | "super_admin"
+        | "platform_admin"
       classificacao_financeira: "empresa" | "pessoal"
       feature_type:
         | "clientes"
@@ -2865,7 +3070,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["proprietario", "administrador", "funcionario"],
+      app_role: [
+        "proprietario",
+        "administrador",
+        "funcionario",
+        "master",
+        "super_admin",
+        "platform_admin",
+      ],
       classificacao_financeira: ["empresa", "pessoal"],
       feature_type: [
         "clientes",

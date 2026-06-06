@@ -48,7 +48,7 @@ export function OSResumoValores({
   const totalMaoObraItens = itens.reduce((acc, item) => acc + (item.valor_mao_obra || 0), 0);
   const maoDeObraReal = Math.max(valorMaoObra, totalMaoObraItens, 0);
   const totalCalculado = totalProdutos + maoDeObraReal;
-  const valorTotalOS = totalCalculado > 0 ? totalCalculado : valorServico;
+  const valorTotalOS = totalCalculado;
   const temMaoDeObra = maoDeObraReal > 0;
 
   // Custo total: soma do custo de cada item (vinculado ou livre).

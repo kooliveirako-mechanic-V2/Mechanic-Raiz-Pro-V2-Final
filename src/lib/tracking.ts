@@ -77,34 +77,14 @@ export function safeMocapiTrack(_name: string, _payload: any): void {
 }
 
 /**
- * [Fase H2] Notifica o Meta Pixel que a URL mudou (SPA / pushState).
- * A "Configurar Eventos" do Meta só reavalia regras "URL contains ..." quando
- * o Pixel dispara um PageView. Sem isso, mudanças via pushState ficam invisíveis
- * para a Event Setup Tool. Esta é a ÚNICA chamada direta a fbq() permitida —
- * não substitui Event Setup Tool, apenas alimenta seu gatilho de URL.
- *
- * Dedup: 1 disparo por URL única por sessão (mesmo padrão do ScrollToTop).
+ * [Fase I] NEUTRALIZADO — no-op.
+ * Motivo: PageView agora sai 100% via dataLayer/GTM com eventID={{DLV - event_id}}.
+ * Disparar fbq('track','PageView') direto, sem eventID compartilhado, duplicaria
+ * o PageView com a tag GTM. Mantido apenas para preservar a assinatura e evitar
+ * quebra dos imports legados — todos os callers devem ser removidos.
  */
 export function notifyMetaUrlChange(): void {
-  if (typeof window === "undefined") return;
-  if (!isProductionHost()) {
-    console.info("[notifyMetaUrlChange PREVIEW]", window.location.href);
-    return;
-  }
-  try {
-    const url = window.location.href;
-    const KEY = "mrp_meta_url_seen";
-    const last = sessionStorage.getItem(KEY);
-    if (last === url) return;
-    sessionStorage.setItem(KEY, url);
-    const fbq = (window as any).fbq;
-    if (typeof fbq === "function") {
-      fbq("track", "PageView");
-      console.info("[notifyMetaUrlChange] fbq PageView →", url);
-    }
-  } catch (e) {
-    console.warn("[notifyMetaUrlChange] failed", e);
-  }
+  // no-op
 }
 
 /**
@@ -153,6 +133,8 @@ const EVENT_NAME_MAP: Record<string, { meta: string; mocapi: string }> = {
   trial_intent_generic: { meta: "Lead",                 mocapi: "Lead" },
   signup_completed:     { meta: "CompleteRegistration", mocapi: "CompleteRegistration" },
   oficina_created:      { meta: "CompleteRegistration", mocapi: "CompleteRegistration" },
+  payment_succeeded:    { meta: "Purchase",             mocapi: "Purchase" },
+  payment_failed:       { meta: "PaymentFailed",        mocapi: "PaymentFailed" },
 };
 
 // ---------- Domain gating ----------
@@ -324,6 +306,22 @@ function shouldSkipByDedup(key: string, ttlMs: number): boolean {
  */
 export function trackEvent(mrpEventName: string, options: TrackEventOptions = {}): string {
   const { params = {}, skipPixel, skipMocapi, skipDataLayer, dedupKey, dedupTtlMs = 2000 } = options;
+  
+  // BLOQUEIO ADICIONAL: PageView duplicado no mesmo pathname.
+  // Se o evento for page_view, garantimos que ele não dispare 2x seguidas para o mesmo path
+  // se for apenas mudança de search params, a menos que seja forçado.
+  if (mrpEventName === "page_view") {
+    const currentPath = window.location.pathname;
+    const lastTrackedPath = sessionStorage.getItem("mrp_last_tracked_pageview");
+    
+    // Se não é carga inicial (params.is_initial_load) e o path é o mesmo, ignoramos
+    if (!params.is_initial_load && currentPath === lastTrackedPath) {
+      console.info("[trackEvent] 🛡️ PageView ignorado em trackEvent (path repetido):", currentPath);
+      return "";
+    }
+    sessionStorage.setItem("mrp_last_tracked_pageview", currentPath);
+  }
+
   if (dedupKey && shouldSkipByDedup(dedupKey, dedupTtlMs)) {
     console.info("[trackEvent SKIP dedup]", mrpEventName, { dedupKey, dedupTtlMs });
     return "";
@@ -365,12 +363,13 @@ export function trackEvent(mrpEventName: string, options: TrackEventOptions = {}
     eventId,
     host: getHost(),
     dataLayer: !skipDataLayer,
-    pixel: false, // [Fase G] desativado — Meta via "Configurar Eventos"
-    mocapi: false, // [Fase G] desativado — Meta via "Configurar Eventos"
+    pixel: false,
+    mocapi: false,
     params,
   });
   return eventId;
 }
+
 
 // ---------- Bootstrap ----------
 // Inicializa visitor_id e landing_page na primeira execução do bundle.

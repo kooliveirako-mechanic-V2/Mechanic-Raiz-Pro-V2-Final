@@ -1,10 +1,11 @@
-// Helper central — Marketing Oracle /go/wpp redirect rastreável.
+// Helper central — abre WhatsApp e empurra evento Contact para o dataLayer/GTM.
 // REGRA RAIZ: a LP é a ÚNICA fonte da verdade da classificação de origem.
 // Oracle apenas espelha. Nunca inventar utm_source/medium/campaign.
-import { trackEvent, isProductionHost } from "@/lib/tracking";
-
-const ORACLE_WPP_BASE = "https://marketing-tracking.lovable.app/go/wpp";
-const LEADS_SECRET = "62c2f59aadb240819048fafa90ab60c8";
+// [Fase I] LEADS_SECRET removido do client (era P0 secret leak).
+// [Fase I] fbq('track','Contact') direto removido — Contact agora dispara
+//          exclusivamente via GTM (tag "Meta Pixel - Contato" com
+//          trigger mrp_event_name=contact_whatsapp e Event ID={{DLV - event_id}}).
+import { trackEvent } from "@/lib/tracking";
 
 const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const;
 const ID_KEYS = ["campaign_id", "adset_id", "ad_id", "placement", "fbclid", "gclid"] as const;
@@ -278,27 +279,10 @@ function buildMessageContext() {
   };
 }
 
-export function buildOracleWppUrl(mocCta: string, message?: string): string {
-  const origin = getOriginContext();
+// [Fase I] buildOracleWppUrl REMOVIDO — era função morta e exigia LEADS_SECRET
+// no client. O fluxo oficial agora vai direto para wa.me, com tracking pelo GTM.
 
-  const params = new URLSearchParams();
-  params.set("s", LEADS_SECRET);
-  params.set("already_tracked", "1");
-  params.set("moc_route", "wpp");
-  params.set("moc_cta", mocCta);
-
-  // SEMPRE espelha a origem detectada — sem fallback inventado.
-  Object.entries(origin).forEach(([k, v]) => {
-    if (v) params.set(k, v);
-  });
-  // utm_content = nome do botão clicado (sobrescreve se URL trouxer)
-  params.set("utm_content", mocCta);
-
-  if (message) params.set("text", message);
-  return `${ORACLE_WPP_BASE}?${params.toString()}`;
-}
-
-// Dispara MOCapi.track('Contact') e abre /go/wpp.
+// Dispara trackEvent('contact_whatsapp') (dataLayer → GTM → Meta Pixel) e abre wa.me.
 // Se `message` não vier, usa mensagem dinâmica baseada na origem real.
 export async function trackContactAndOpenWpp(
   mocCta: string,
@@ -311,7 +295,6 @@ export async function trackContactAndOpenWpp(
 
   try {
     const origin = getOriginContext();
-    // Normaliza utm_source no payload server-side (consistência com Lead)
     if (origin.utm_source) origin.utm_source = normalizeSource(origin.utm_source);
     const fbp = readCookie("_fbp");
     const fbc = readCookie("_fbc");
@@ -337,38 +320,19 @@ export async function trackContactAndOpenWpp(
       ...tracking_context,
     };
 
-    // Fase 1b: trackEvent('contact_whatsapp') = dataLayer + Pixel(Contact) + MOCapi(Contact),
-    // mesmo event_id em todos. Em preview, só dataLayer dispara (não suja Meta/Oracle).
-    // [Fase F] Dedup: 1 disparo POR SESSÃO por origem de botão (Infinity TTL).
-    // Permite clicar em botões diferentes (header/footer/flutuante) mas cada um só 1x.
-    const eventId = trackEvent('contact_whatsapp', {
+    // [Fase I] Fonte oficial = dataLayer/GTM. A tag "Meta Pixel - Contato"
+    // do GTM consome mrp_event_name=contact_whatsapp e usa Event ID={{DLV - event_id}}.
+    // Dedup mantida: 1 disparo POR SESSÃO por origem de botão (Infinity TTL).
+    trackEvent('contact_whatsapp', {
       dedupKey: `contact_whatsapp:${mocCta}`,
       dedupTtlMs: Number.POSITIVE_INFINITY,
       params: payload,
     });
 
-    // [Fase H3] Disparo DIRETO do Meta Pixel para cliques de WhatsApp.
-    // Cliques em <a>/<button> que abrem wa.me NÃO mudam a URL do SPA, então a
-    // Event Setup Tool da Meta não consegue capturar via regra "URL contém".
-    // Disparamos fbq('track','Contact') com o MESMO event_id do dataLayer/CAPI
-    // para que a Meta deduplique corretamente Pixel × CAPI.
-    if (isProductionHost() && eventId) {
-      try {
-        const fbq = (window as any).fbq;
-        if (typeof fbq === "function") {
-          fbq("track", "Contact", {
-            content_name: contentName,
-            content_category: mocCta,
-            source_label: ft.source_label,
-          }, { eventID: eventId });
-          console.info("[oracleWpp] fbq Contact →", { mocCta, eventId });
-        }
-      } catch (e) {
-        console.warn("[oracleWpp] fbq Contact failed", e);
-      }
-    } else {
-      console.info("[oracleWpp PREVIEW] fbq Contact (skipped non-prod)", { mocCta });
-    }
+    // [Fase I] fbq('track','Contact') direto REMOVIDO para evitar duplicação
+    // com a tag GTM "Meta Pixel - Contato". A tag GTM dispara com eventID
+    // compartilhado, garantindo dedup correto com a CAPI quando ela voltar
+    // server-side via edge/proxy.
 
     // pequeno delay pra dar chance ao envio síncrono antes do open()
     await new Promise((r) => setTimeout(r, 150));
@@ -376,11 +340,6 @@ export async function trackContactAndOpenWpp(
     console.warn("[oracleWpp] Contact tracking failed", e);
   }
 
-  // IMPORTANTE: o proxy Oracle (/go/wpp) descarta o parâmetro `text` e injeta
-  // uma mensagem hardcoded ("Vim pelo anúncio..."), quebrando a atribuição
-  // dinâmica. Por isso vamos DIRETO pro wa.me com a mensagem certa.
-  // O tracking (MOCapi.track('Contact')) já foi disparado acima com toda a
-  // atribuição — não perdemos nada de rastreio fazendo o bypass aqui.
   const waUrl = `https://wa.me/5511950891497?text=${encodeURIComponent(message)}`;
   if (target === "_self") {
     window.location.href = waUrl;

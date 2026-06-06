@@ -18,20 +18,26 @@ export function useOSSearch(searchTerm: string) {
       if (!oficinaAtual || trimmed.length < 2) return [];
 
       const likeTerm = `%${trimmed}%`;
+      const isNumero = /^\d+$/.test(trimmed);
 
-      // Busca por tipo_servico, descrição e placa do veículo
-      // Para nome do cliente, usamos um join + filtro
-      const { data, error } = await supabase
+      // Base query
+      let query = supabase
         .from("ordens_servico")
         .select(`
           *,
           cliente:clientes(id, nome, telefone),
           veiculo:veiculos(id, tipo, marca, modelo, placa)
         `)
-        .eq("oficina_id", oficinaAtual.id)
-        .or(
-          `tipo_servico.ilike.${likeTerm},descricao.ilike.${likeTerm}`
-        )
+        .eq("oficina_id", oficinaAtual.id);
+
+      // Se for número, busca exata por número OS + busca parcial por texto
+      if (isNumero) {
+        query = query.or(`numero.eq.${trimmed},tipo_servico.ilike.${likeTerm},descricao.ilike.${likeTerm}`);
+      } else {
+        query = query.or(`tipo_servico.ilike.${likeTerm},descricao.ilike.${likeTerm}`);
+      }
+
+      const { data, error } = await query
         .order("data_servico", { ascending: false })
         .limit(50);
 

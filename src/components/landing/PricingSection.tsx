@@ -1,4 +1,5 @@
 import React, { forwardRef, useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
   Bike, 
@@ -142,6 +143,7 @@ const PLANS = {
 };
 
 export const PricingSection = forwardRef<HTMLElement, PricingSectionProps>(({ onScrollToSignup }, ref) => {
+  const navigate = useNavigate();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const isAnnual = billingCycle === 'annual';
   const localSectionRef = useRef<HTMLElement | null>(null);
@@ -212,12 +214,18 @@ export const PricingSection = forwardRef<HTMLElement, PricingSectionProps>(({ on
     // Permite configurar eventos no Meta Event Setup Tool e GA4 por "URL contém".
     try {
       const slug = PLAN_URL_SLUG[planType];
-      const url = new URL(window.location.href);
-      url.searchParams.set('plano', slug);
-      url.searchParams.set('ciclo', billingCycle === 'annual' ? 'anual' : 'mensal');
-      window.history.pushState({ plano: slug }, '', url.toString());
-      // [Fase H2] Notifica Meta Pixel da nova URL → reativa regras da Event Setup Tool
-      import('@/lib/tracking').then(m => m.notifyMetaUrlChange()).catch(() => {});
+      const params = new URLSearchParams(window.location.search);
+      params.set('plano', slug);
+      params.set('ciclo', billingCycle === 'annual' ? 'anual' : 'mensal');
+      
+      // Usa navigate do react-router-dom para garantir que o ciclo de vida do React acompanhe a mudança.
+      navigate({
+        pathname: window.location.pathname,
+        search: params.toString()
+      }, { replace: true });
+      
+      // [Fase I] Disparo fbq direto removido — Meta Pixel agora é alimentado
+      // exclusivamente pelo GTM via dataLayer (trackEvent select_plan abaixo).
     } catch {
       // não bloqueia o fluxo
     }

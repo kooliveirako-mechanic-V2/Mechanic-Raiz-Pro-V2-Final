@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOficina } from "@/contexts/OficinaContext";
 import { toast } from "sonner";
 import { humanizeError, withRetry, logBusinessEvent } from "@/lib/errorHandling";
+import { getUnifiedMetrics } from "@/services/financeiroService";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 
 export type TipoFinanceiro = "entrada" | "saida";
 
@@ -31,43 +33,42 @@ export interface Financeiro {
   comprovante_url?: string | null;
 }
 
-interface FinanceiroResumo {
-  registros: Financeiro[];
-  mes_atual: { entradas: number; saidas: number };
-  mes_anterior: { entradas: number; saidas: number };
-  mensal: Array<{ mes: string; entradas: number; saidas: number }>;
-}
-
-/**
- * Hook consolidado que usa a RPC get_financeiro_resumo para buscar
- * TODOS os dados financeiros em uma única chamada, eliminando N+1.
- * 
- * Dados retornados:
- * - registros: últimos 2 meses de lançamentos
- * - mes_atual/mes_anterior: totais computados no servidor
- * - mensal: breakdown dos últimos 6 meses para gráficos
- */
 export function useFinanceiro() {
   const { oficinaAtual } = useOficina();
   const queryClient = useQueryClient();
 
-  const { data: resumo, isLoading, error } = useQuery({
-    queryKey: ["financeiro-resumo", oficinaAtual?.id],
-    queryFn: async (): Promise<FinanceiroResumo> => {
-      if (!oficinaAtual) {
-        return { registros: [], mes_atual: { entradas: 0, saidas: 0 }, mes_anterior: { entradas: 0, saidas: 0 }, mensal: [] };
-      }
-
-      const { data, error } = await supabase.rpc("get_financeiro_resumo", {
-        p_oficina_id: oficinaAtual.id,
-        p_meses_historico: 6,
-      });
+  // 1. Listagem bruta (continua vindo da tabela, mas com RLS)
+  const { data: registros = [], isLoading: listLoading, error: listError } = useQuery({
+    queryKey: ["financeiro-list", oficinaAtual?.id],
+    queryFn: async (): Promise<Financeiro[]> => {
+      if (!oficinaAtual) return [];
+      const { data, error } = await supabase
+        .from("financeiro")
+        .select("*")
+        .eq("oficina_id", oficinaAtual.id)
+        .order("data", { ascending: false })
+        .limit(100);
 
       if (error) throw error;
-      return data as unknown as FinanceiroResumo;
+      return data as Financeiro[];
     },
     enabled: !!oficinaAtual,
-    staleTime: 30_000, // 30s — evita refetches desnecessários
+  });
+
+  // 2. TOTAIS OFICIAIS (Vem da RPC de Métricas Unificadas)
+  const { data: metrics, isLoading: metricsLoading } = useQuery({
+    queryKey: ["financeiro-unificado-atual", oficinaAtual?.id],
+    queryFn: async () => {
+      if (!oficinaAtual) return null;
+      const inicio = format(startOfMonth(new Date()), "yyyy-MM-dd");
+      const fim = format(endOfMonth(new Date()), "yyyy-MM-dd");
+      return await getUnifiedMetrics({
+        oficinaId: oficinaAtual.id,
+        inicio,
+        fim,
+      });
+    },
+    enabled: !!oficinaAtual,
   });
 
   // Delete mutation
@@ -85,7 +86,8 @@ export function useFinanceiro() {
       );
     },
     onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: ["financeiro-resumo", oficinaAtual?.id] });
+      queryClient.invalidateQueries({ queryKey: ["financeiro-list", oficinaAtual?.id] });
+      queryClient.invalidateQueries({ queryKey: ["financeiro-unificado-atual"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success("Lançamento excluído com sucesso!");
       logBusinessEvent("financeiro_excluido", { id });
@@ -96,31 +98,17 @@ export function useFinanceiro() {
     },
   });
 
-  const registros = resumo?.registros ?? [];
-  const totalEntradas = resumo?.mes_atual?.entradas ?? 0;
-  const totalSaidas = resumo?.mes_atual?.saidas ?? 0;
-  const lucroTotal = totalEntradas - totalSaidas;
-
-  const entradasMesAnterior = resumo?.mes_anterior?.entradas ?? 0;
-  const percentualMudanca = entradasMesAnterior > 0
-    ? Math.round(((totalEntradas - entradasMesAnterior) / entradasMesAnterior) * 100)
-    : totalEntradas > 0 ? 100 : 0;
-
-  const entradas = registros.filter((r) => r.tipo === "entrada");
-  const saidas = registros.filter((r) => r.tipo === "saida");
+  const totalEntradas = metrics?.caixa.entradas_oficina_periodo ?? 0;
+  const totalSaidas = metrics?.caixa.saidas_oficina_periodo ?? 0;
+  const lucroTotal = metrics?.caixa.lucro_caixa_oficina_periodo ?? 0;
 
   return {
     registros,
-    entradas,
-    saidas,
     totalEntradas,
     totalSaidas,
     lucroTotal,
-    percentualMudanca,
-    // Dados para gráficos (compartilhados com dashboard)
-    mensalBreakdown: resumo?.mensal ?? [],
-    isLoading,
-    error,
+    isLoading: listLoading || metricsLoading,
+    error: listError,
     deleteRegistro: deleteMutation.mutate,
     isDeleting: deleteMutation.isPending,
   };

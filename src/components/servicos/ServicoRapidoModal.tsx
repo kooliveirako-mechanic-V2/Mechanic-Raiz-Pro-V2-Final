@@ -241,6 +241,7 @@ export function ServicoRapidoModal({
   // ---- Submit: Item Livre ----
   const handleSubmitLivre = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
 
     if (!descricao.trim()) {
       toast.error("Informe a descrição do serviço");
@@ -374,6 +375,7 @@ export function ServicoRapidoModal({
 
   const handleSubmitServicoManual = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     const nome = servicoManualNome.trim();
     const valorNum = parseFloat(servicoManualValor) || 0;
     if (!nome) {
