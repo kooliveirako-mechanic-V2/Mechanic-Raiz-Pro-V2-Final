@@ -180,14 +180,14 @@ export function OSResumoValores({
             </div>
           </div>
 
-          {/* Warning for zero-cost items */}
+          {/* Informação sobre itens sem custo (Apenas informativo, não impede o fechamento) */}
           {hasItensSemCusto && (
-            <div className="mt-3 p-2.5 rounded-lg bg-warning/10 border border-warning/30">
-              <p className="text-xs font-semibold text-warning">
-                ⚠️ Lucro não pode ser calculado
+            <div className="mt-3 p-2.5 rounded-lg bg-blue-500/5 border border-blue-500/20">
+              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                <span>ⓘ</span> Nota sobre o lucro
               </p>
-              <p className="text-[11px] text-warning/80 mt-0.5">
-                {itensSemCusto.length} item(ns) não têm custo de compra cadastrado: {itensSemCusto.map(i => i.nome_item).join(", ")}. Cadastre o custo no Estoque.
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {itensSemCusto.length} item(ns) ({itensSemCusto.map(i => i.nome_item).join(", ")}) estão com custo zerado no estoque. O lucro exibido pode não ser exato.
               </p>
             </div>
           )}

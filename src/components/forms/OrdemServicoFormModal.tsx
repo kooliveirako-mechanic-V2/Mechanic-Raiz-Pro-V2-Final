@@ -28,6 +28,7 @@ import { handleFormKeyDown } from "@/lib/formGuard";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Wrench, MessageCircle, Link2, Receipt, Eye } from "lucide-react";
 import { openWhatsAppOS } from "@/lib/whatsapp";
+import { cn } from "@/lib/utils";
 import { getPublicOSLink } from "@/utils/url";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -966,8 +967,21 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
         )}
         <div className="flex gap-3">
           <Button type="button" variant="outline" onClick={handleCancel} className="flex-1 h-14 text-base">Cancelar</Button>
-          <Button type="submit" className="flex-[2] h-14 bg-primary hover:bg-primary/90 font-bold text-base shadow-lg" disabled={loading || !f.clienteId || !f.veiculoId || !tipoServico}>
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : isEditing ? "Salvar" : "CRIAR ORDEM DE SERVIÇO"}
+          <Button 
+            type="submit" 
+            className={cn(
+              "flex-[2] h-14 font-black text-base shadow-lg transition-all",
+              f.status === "finalizado" ? "bg-success hover:bg-success/90" : "bg-primary hover:bg-primary/90"
+            )} 
+            disabled={loading || !f.clienteId || !f.veiculoId || !tipoServico}
+          >
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : isEditing ? (
+              f.status === "finalizado" ? "FINALIZAR E SALVAR" : "SALVAR ALTERAÇÕES"
+            ) : (
+              f.status === "finalizado" ? "CRIAR E FINALIZAR" : "CRIAR ORDEM DE SERVIÇO"
+            )}
           </Button>
         </div>
       </div>

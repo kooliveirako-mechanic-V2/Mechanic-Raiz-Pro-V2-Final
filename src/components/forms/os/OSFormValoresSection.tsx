@@ -206,12 +206,12 @@ export function OSFormValoresSection({
               )}
 
               {hasItensSemCusto && (
-                <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 mt-1">
-                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-                    ⚠️ Lucro não pode ser calculado
+                <div className="p-2.5 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/30 mt-1">
+                  <p className="text-[10px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <span>ℹ️ Lucro real não disponível</span>
                   </p>
-                  <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-0.5">
-                    {pendingItensSemCustoCount} item(ns) do estoque não têm custo de compra cadastrado. Cadastre o custo no <strong>Estoque</strong> para ver o lucro real.
+                  <p className="text-[9px] text-amber-600/80 dark:text-amber-500/80 mt-0.5">
+                    Cadastre o custo de compra das peças no <strong>Estoque</strong> para ver o lucro exato desta OS. Isso não impede a finalização.
                   </p>
                 </div>
               )}

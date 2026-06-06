@@ -1,5 +1,5 @@
 {
   "app": "mechanic-raiz-pro",
   "note": "Este arquivo é estático. O build_id real é injetado no JS pelo Vite.",
-  "rebuild_trigger": "2026-04-16T retry"
+  "rebuild_trigger": "2026-06-04T16:15:00Z"
 }

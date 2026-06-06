@@ -1,0 +1,10 @@
+project_id = "cuhkkoqqeguascdsvtky"
+
+[functions.ingest-legacy-data]
+verify_jwt = false
+
+[functions.admin-set-password]
+verify_jwt = false
+
+[functions.capi-proxy]
+verify_jwt = false

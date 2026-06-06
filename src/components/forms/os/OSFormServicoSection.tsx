@@ -7,6 +7,7 @@ import { ResponsavelSelect } from "../ResponsavelSelect";
 import { SectionHeader } from "./SectionHeader";
 import { StatusOS } from "@/hooks/useOrdensServico";
 import { CalendarClock } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Props {
   responsavelId: string;
@@ -70,15 +71,22 @@ export function OSFormServicoSection({
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</Label>
           <Select value={status} onValueChange={(v) => setStatus(v as StatusOS)}>
-            <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
+            <SelectTrigger className={cn(
+              "h-12 text-base font-semibold transition-all",
+              status === "finalizado" 
+                ? "border-success bg-success/5 text-success ring-1 ring-success/20" 
+                : "border-input"
+            )}>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent className="z-[9999] bg-background" position="popper" sideOffset={4}>
               <SelectItem value="aberto" className="py-3">Aberto</SelectItem>
               <SelectItem value="pendente" className="py-3">Aguardando</SelectItem>
               {isAutoEletrica && <SelectItem value="em_diagnostico" className="py-3">Em Diagnóstico</SelectItem>}
               <SelectItem value="em_andamento" className="py-3">Em Andamento</SelectItem>
               <SelectItem value="aguardando_peca" className="py-3">Aguardando Peça</SelectItem>
-              <SelectItem value="finalizado" className="py-3">Finalizado</SelectItem>
-              <SelectItem value="cancelado" className="py-3">Cancelado</SelectItem>
+              <SelectItem value="finalizado" className="py-3 font-bold text-success">✅ Finalizado</SelectItem>
+              <SelectItem value="cancelado" className="py-3 text-destructive">❌ Cancelado</SelectItem>
             </SelectContent>
           </Select>
         </div>
