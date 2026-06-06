@@ -322,10 +322,20 @@ export function trackEvent(mrpEventName: string, options: TrackEventOptions = {}
     sessionStorage.setItem("mrp_last_tracked_pageview", currentPath);
   }
 
+  // BLOQUEIO ADICIONAL: Evita PageView automático quando clicamos em CTAs de plano/teste
+  // Se o evento NÃO for page_view, nós bloqueamos o PRÓXIMO page_view se ele vier
+  // logo em seguida para o mesmo pathname (mudança apenas de search params).
+  if (mrpEventName !== "page_view" && mrpEventName !== "section_viewed") {
+    const currentPath = window.location.pathname;
+    sessionStorage.setItem("mrp_last_tracked_pageview", currentPath);
+    console.info(`[trackEvent] 🛡️ Bloqueio preventivo de PageView ativado para path: ${currentPath} (evento disparado: ${mrpEventName})`);
+  }
+
   if (dedupKey && shouldSkipByDedup(dedupKey, dedupTtlMs)) {
     console.info("[trackEvent SKIP dedup]", mrpEventName, { dedupKey, dedupTtlMs });
     return "";
   }
+
   const eventId = options.eventId || generateEventId();
   const visitorId = getVisitorId();
   const sessionId = getSessionId();
