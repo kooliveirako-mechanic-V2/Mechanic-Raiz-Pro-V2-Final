@@ -307,28 +307,37 @@ function shouldSkipByDedup(key: string, ttlMs: number): boolean {
 export function trackEvent(mrpEventName: string, options: TrackEventOptions = {}): string {
   const { params = {}, skipPixel, skipMocapi, skipDataLayer, dedupKey, dedupTtlMs = 2000 } = options;
   
-  // BLOQUEIO ADICIONAL: PageView duplicado no mesmo pathname.
-  // Se o evento for page_view, garantimos que ele não dispare 2x seguidas para o mesmo path
-  // se for apenas mudança de search params, a menos que seja forçado.
+  const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+  const now = Date.now();
+
+  // 🛡️ BLOQUEIO 1: PageView duplicado no mesmo pathname.
   if (mrpEventName === "page_view") {
-    const currentPath = window.location.pathname;
     const lastTrackedPath = sessionStorage.getItem("mrp_last_tracked_pageview");
+    const lastTrackedTime = Number(sessionStorage.getItem("mrp_last_tracked_time") || 0);
     
-    // Se não é carga inicial (params.is_initial_load) e o path é o mesmo, ignoramos
-    if (!params.is_initial_load && currentPath === lastTrackedPath) {
-      console.info("[trackEvent] 🛡️ PageView ignorado em trackEvent (path repetido):", currentPath);
+    // Se o path é o mesmo e foi disparado há menos de 3 segundos, ignoramos (mesmo que mude query params)
+    if (!params.is_initial_load && currentPath === lastTrackedPath && (now - lastTrackedTime < 3000)) {
+      console.info("[trackEvent] 🛡️ PageView BLOQUEADO (repetido/muito rápido):", currentPath);
       return "";
     }
+    
+    // 🛡️ BLOQUEIO 2: Bloqueio pós-conversão (select_plan, lead_created, etc)
+    const conversionLockTime = Number(sessionStorage.getItem("mrp_conversion_lock_time") || 0);
+    if (now - conversionLockTime < 4000) {
+      console.info("[trackEvent] 🛡️ PageView BLOQUEADO (pós-conversão recente):", currentPath);
+      return "";
+    }
+
     sessionStorage.setItem("mrp_last_tracked_pageview", currentPath);
+    sessionStorage.setItem("mrp_last_tracked_time", String(now));
   }
 
-  // BLOQUEIO ADICIONAL: Evita PageView automático quando clicamos em CTAs de plano/teste
-  // Se o evento NÃO for page_view, nós bloqueamos o PRÓXIMO page_view se ele vier
-  // logo em seguida para o mesmo pathname (mudança apenas de search params).
-  if (mrpEventName !== "page_view" && mrpEventName !== "section_viewed") {
-    const currentPath = window.location.pathname;
-    sessionStorage.setItem("mrp_last_tracked_pageview", currentPath);
-    console.info(`[trackEvent] 🛡️ Bloqueio preventivo de PageView ativado para path: ${currentPath} (evento disparado: ${mrpEventName})`);
+  // 🛡️ BLOQUEIO 3: Ativa lock de conversão
+  // Se o evento for select_plan ou lead_created, nós bloqueamos QUALQUER page_view nos próximos 4 segundos.
+  // Isso mata qualquer disparo automático de GTM/History que ocorra durante o fluxo de checkout/signup.
+  if (mrpEventName === "select_plan" || mrpEventName === "lead_created" || mrpEventName === "trial_intent_generic") {
+    sessionStorage.setItem("mrp_conversion_lock_time", String(now));
+    console.info(`[trackEvent] 🛡️ LOCK de PageView ativado por 4s (evento: ${mrpEventName})`);
   }
 
   if (dedupKey && shouldSkipByDedup(dedupKey, dedupTtlMs)) {
@@ -340,7 +349,6 @@ export function trackEvent(mrpEventName: string, options: TrackEventOptions = {}
   const visitorId = getVisitorId();
   const sessionId = getSessionId();
   const context = getTrackingContext();
-  const mapping = EVENT_NAME_MAP[mrpEventName];
 
   const fullPayload = {
     event_id: eventId,
@@ -352,38 +360,40 @@ export function trackEvent(mrpEventName: string, options: TrackEventOptions = {}
 
   const isProd = isProductionHost();
 
-  // 1) dataLayer (GTM) — SEMPRE dispara (inclusive em preview/teste),
-  //    pra permitir validar GTM Preview e GA4 DebugView sem sujar Meta/Oracle.
+  // 1) dataLayer (GTM)
   if (!skipDataLayer) {
+    // Para PageView, enviamos o nome oficial esperado por triggers legados
+    const gtmEvent = mrpEventName === "page_view" ? "page_view" : "mrp_event";
+    
     pushDataLayer({
-      event: "mrp_event",
+      event: gtmEvent,
       mrp_event_name: mrpEventName,
       ...fullPayload,
     });
+
+    // Se for PageView, enviamos um SEGUNDO push com mrp_event para garantir que tags
+    // baseadas no trigger genérico também funcionem.
+    if (gtmEvent === "page_view") {
+      pushDataLayer({
+        event: "mrp_event",
+        mrp_event_name: mrpEventName,
+        ...fullPayload,
+      });
+    }
   }
 
-  // [Fase G] Disparos diretos de Meta Pixel (fbq) e MOCapi/CAPI foram REMOVIDOS.
-  // O rastreamento Meta agora é 100% configurado via "Configurar Eventos" do Meta
-  // (Event Setup Tool), lendo o DOM e o dataLayer. O código apenas alimenta o
-  // dataLayer/GTM — GA4 e Google Ads são disparados pelo GTM a partir daí.
-  // Flags skipPixel/skipMocapi mantidas na API por compatibilidade (no-op).
-  void skipPixel; void skipMocapi; void mapping;
+  // [Fase G] Disparos diretos de Meta Pixel (fbq) e MOCapi/CAPI removidos.
+  void skipPixel; void skipMocapi;
 
   console.info(isProd ? "[trackEvent]" : "[trackEvent PREVIEW]", mrpEventName, {
     eventId,
-    host: getHost(),
-    dataLayer: !skipDataLayer,
-    pixel: false,
-    mocapi: false,
+    gtm_event: mrpEventName === "page_view" ? "page_view" : "mrp_event",
     params,
   });
   return eventId;
 }
 
-
 // ---------- Bootstrap ----------
-// Inicializa visitor_id e landing_page na primeira execução do bundle.
-// NÃO dispara evento nenhum — só prepara o estado.
 if (typeof window !== "undefined") {
   try {
     getVisitorId();

@@ -519,7 +519,10 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
         const isFinalizing = f.status === "finalizado" && ordem.status !== "finalizado";
 
         if (isFinalizing) {
-          const dataWithoutFinalizado = { ...data, status: ordem.status as StatusOS };
+          // Bloqueio de segurança: se a OS estiver como 'pendente', forçar 'em_andamento' primeiro
+          // para satisfazer a constraint de transição de status do banco (pendente -> em_andamento -> finalizado)
+          const statusParaSalvar = ordem.status === "pendente" ? "em_andamento" : ordem.status;
+          const dataWithoutFinalizado = { ...data, status: statusParaSalvar as StatusOS };
           await updateOrdem.mutateAsync({ id: ordem.id, ...dataWithoutFinalizado });
 
           const formaPagamentoId = f.formaPagamento ? formasPagamentoDB.find((fp) => fp.nome === f.formaPagamento)?.id || null : null;
@@ -540,8 +543,15 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
             rpcPayload,
           );
 
-          if (rpcError) throw rpcError;
-
+          if (rpcError) {
+            console.error("[Servicos] RPC finalizar_os_atomica error:", rpcError);
+            // Se o erro for de transição de status, informar ao usuário de forma amigável
+            if (rpcError.message.includes("Transição de status não permitida")) {
+              throw new Error("Não foi possível finalizar a OS devido a uma regra de segurança de status. Tente salvar a OS como 'Em Andamento' primeiro e depois finalize.");
+            }
+            throw rpcError;
+          }
+          
           const result = rpcResult as { success: boolean; os_id: string; valor_total: number; status: string };
           if (!result.success) throw new Error("Falha ao finalizar OS. Nenhuma alteração financeira foi salva.");
 
@@ -654,7 +664,12 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
         if (rpcError) throw rpcError;
 
         const result = rpcResult as { success: boolean; os_id: string; numero: number; valor_total: number; custo_total: number; status: string; total_itens_inseridos: number };
-        if (!result.success) throw new Error("Falha ao criar OS. Nenhum dado foi salvo.");
+        
+        if (!result.success) {
+          // Se a falha for transição de status pendente -> finalizado (mesmo em OS nova que já nasce finalizada no banco)
+          // Isso pode ocorrer se o trigger/RPC tentar forçar o status 'finalizado' direto.
+          throw new Error("Falha ao criar OS. Verifique se o veículo possui quilometragem válida ou se há campos obrigatórios faltando.");
+        }
 
         // Registrar sinal inicial (se informado) — após OS criada
         const valorSinalNum = parseFloat(sinalInicial.valor.replace(",", ".")) || 0;

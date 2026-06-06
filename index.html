@@ -2,6 +2,7 @@
 <html lang="pt-BR"><!-- rebuild-trigger-v1 -->
   <head>
     <meta charset="UTF-8" />
+    <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     
     <!-- Primary SEO Meta Tags -->
@@ -91,18 +92,17 @@
     // Agora SÓ disparam os eventos que NÓS controlamos via trackEvent().
     fbq('set', 'autoConfig', 'false', '904555945615995');
     fbq('init', '904555945615995');
-    // [Fase A] fbq('track','PageView') REMOVIDO daqui.
-    // PageView vem APENAS de (1) capi-client.js (1ª carga) e (2) trackEvent('page_view')
-    // do ScrollToTop.tsx em navegações SPA — ambos com event_id deduplicado.
+    // [Fase A+I] fbq('track','PageView') REMOVIDO daqui.
+    // PageView agora sai EXCLUSIVAMENTE de trackEvent('page_view') → dataLayer → GTM,
+    // com eventID={{DLV - event_id}} configurado na tag Meta Pixel - PageView no GTM.
     </script>
 
-    <!-- Marketing Oracle CAPI client (oficial) — Fase 6b: tracking_context automático server-side -->
-    <script
-      src="https://marketing-tracking.lovable.app/capi-client.js"
-      data-endpoint="https://marketing-tracking.lovable.app"
-      data-leads-secret="62c2f59aadb240819048fafa90ab60c8"
-      defer
-    ></script>
+    <!-- [Fase I] Marketing Oracle capi-client.js REMOVIDO do <head>.
+         Motivo: (1) expunha LEADS_SECRET no HTML/bundle (P0 secret leak)
+                 (2) duplicava PageView com o GTM (browser sem eventID compartilhado).
+         O Marketing Oracle voltará server-side, via edge/proxy seguro, com o
+         mesmo event_id gerado por trackEvent() (deduplicação garantida). -->
+    
 
     <!-- UTM Persistence: salva UTMs/click IDs no localStorage na 1ª visita -->
     <script>
@@ -145,11 +145,9 @@
         };
 
         // === INJEÇÃO NO _mocapi_attr ===
-        // O capi-client.js (defer) lê e SOBRESCREVE sessionStorage._mocapi_attr
-        // na inicialização dele, descartando utm_slug. Por isso fazemos o merge
-        // em DUAS fases: (1) imediato — caso capi-client ainda nao tenha rodado,
-        // (2) repetido após DOMContentLoaded/load + retries, garantindo que
-        // nosso utm_slug sobreviva à inicialização do capi-client.
+        // Mantida para compatibilidade caso a chave seja consumida server-side
+        // por um futuro proxy/edge do Marketing Oracle. O capi-client.js
+        // foi removido do <head>, então não há mais corrida pelo storage.
         var ATTR_KEY = '_mocapi_attr';
         var ATTR_KEYS = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','utm_slug','fbclid','gclid','campaign_id','adset_id','ad_id','placement'];
         function mergeMocapiAttr(){
@@ -170,17 +168,7 @@
             }
           } catch(e){}
         }
-        // fase 1: imediato
         mergeMocapiAttr();
-        // fase 2: após DOM/load + retries (capi-client é defer)
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', mergeMocapiAttr);
-        }
-        window.addEventListener('load', mergeMocapiAttr);
-        // fase 3: retries curtos pra cobrir a inicialização assíncrona do capi-client
-        setTimeout(mergeMocapiAttr, 300);
-        setTimeout(mergeMocapiAttr, 1000);
-        setTimeout(mergeMocapiAttr, 2500);
       } catch(e){}
     })();
     </script>

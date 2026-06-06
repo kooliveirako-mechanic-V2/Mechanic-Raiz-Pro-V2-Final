@@ -7,7 +7,7 @@ import { trackEvent } from "@/lib/tracking";
  * e gerenciar o disparo ÚNICO de PageView para o GTM/dataLayer.
  */
 export function ScrollToTop() {
-  const { pathname, search, hash } = useLocation();
+  const { pathname, search } = useLocation();
   const lastPathRef = useRef<string | null>(null);
   const isFirstRun = useRef(true);
 
@@ -62,4 +62,5 @@ export function ScrollToTop() {
 
   return null;
 }
+
 
