@@ -136,12 +136,12 @@ function RelatorioFaturamento() {
         
         data.push({
           mes: format(date, "MMM/yy", { locale: ptBR }),
-          mao_obra: m?.categorias?.servicos?.bruto ?? 0,
-          pecas: m?.categorias?.pecas?.bruto ?? 0,
-          custo_pecas: m?.operacional?.custo_pecas ?? 0,
-          lucro: m?.operacional?.lucro_operacional ?? 0,
-          lucro_caixa: m?.caixa?.lucro_caixa_oficina_periodo ?? 0,
-          faturamento: m?.faturamento?.liquido ?? 0,
+          mao_obra: m.categorias.servicos.bruto,
+          pecas: m.categorias.pecas.bruto,
+          custo_pecas: m.operacional.custo_pecas,
+          lucro: m.operacional.lucro_operacional,
+          lucro_caixa: m.caixa.lucro_caixa_oficina_periodo,
+          faturamento: m.faturamento.liquido,
         });
       }
       return data;
