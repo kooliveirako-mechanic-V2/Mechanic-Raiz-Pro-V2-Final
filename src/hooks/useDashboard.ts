@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOficina } from "@/contexts/OficinaContext";
 import { startOfMonth, endOfMonth, format, subMonths } from "date-fns";
-import { getUnifiedMetrics } from "@/services/financeiroService";
+import { getUnifiedMetrics, type UnifiedMetrics } from "@/services/financeiroService";
 
 export interface DashboardStats {
   servicosHoje: number;
@@ -55,17 +55,25 @@ export function useDashboard() {
   const { data: metrics, isLoading: metricsLoading, error: metricsError } = useQuery({
     queryKey: ["financeiro-unificado-atual", oficinaAtual?.id],
     queryFn: async () => {
-      if (!oficinaAtual) return null;
-      const inicio = format(startOfMonth(new Date()), "yyyy-MM-dd");
-      const fim = format(endOfMonth(new Date()), "yyyy-MM-dd");
-      return await getUnifiedMetrics({
-        oficinaId: oficinaAtual.id,
-        inicio,
-        fim,
-      });
+      if (!oficinaAtual?.id) return null;
+      
+      const { data, error } = await supabase.rpc(
+        'get_metrics_financeiras_unificadas',
+        { p_oficina_id: oficinaAtual.id }
+      );
+
+      if (error) {
+        console.error('[Dashboard] RPC error:', error);
+        throw error;
+      }
+      
+      console.log('[Dashboard] RPC result:', data);
+      return data as any as UnifiedMetrics;
     },
-    enabled: !!oficinaAtual,
-    staleTime: 30_000,
+    enabled: !!oficinaAtual?.id,
+    retry: 2,
+    staleTime: 30000,
+    refetchOnWindowFocus: true,
   });
 
   // ── Comparativo Mensal (Mês Anterior) ──────────────────────
@@ -101,8 +109,8 @@ export function useDashboard() {
         const m = await getUnifiedMetrics({ oficinaId: oficinaAtual.id, inicio, fim });
         data.push({
           mes: format(date, "MMM"),
-          faturamento: m.faturamento.liquido,
-          lucro: m.operacional.lucro_operacional,
+          faturamento: (m as any)?.faturamento?.liquido ?? 0,
+          lucro: (m as any)?.operacional?.lucro_operacional ?? 0,
         });
       }
       return data;
@@ -254,12 +262,12 @@ export function useDashboard() {
   const monthlyComparison = metrics && metricsPrev && stats ? {
     currentMonth: {
       servicos: stats.servicosAtual,
-      faturamento: metrics.faturamento.liquido,
+      faturamento: (metrics as any)?.faturamento?.liquido ?? 0,
       clientes: stats.novosClientesMes,
     },
     previousMonth: {
       servicos: stats.servicosPrev,
-      faturamento: metricsPrev.faturamento.liquido,
+      faturamento: (metricsPrev as any)?.faturamento?.liquido ?? 0,
       clientes: stats.clientesPrev,
     },
   } : null;
@@ -274,19 +282,19 @@ export function useDashboard() {
       estoqueBaixo: stats?.estoqueBaixo ?? 0,
       
       // MÉTRICAS UNIFICADAS (FASE 2)
-      faturamentoMes: metrics?.faturamento.liquido ?? 0,
-      recebimentosMes: metrics?.caixa.recebido_vinculado_competencia ?? 0,
-      lucroCaixaMes: metrics?.caixa.lucro_caixa_oficina_periodo ?? 0,
-      lucroOperacionalMes: metrics?.operacional.lucro_operacional ?? 0,
-      pecasMes: metrics?.categorias.pecas.liquido ?? 0,
-      servicosMaoObraMes: metrics?.categorias.servicos.liquido ?? 0,
-      custoPecasMes: metrics?.operacional.custo_pecas ?? 0,
-      descontosMes: metrics?.faturamento.descontos ?? 0,
-      alertaItensSemCusto: metrics?.auditoria.total_itens_livres_sem_custo > 0,
-      alertaLucroInflado: metrics?.auditoria.alerta_lucro_inflado ?? false,
+      faturamentoMes: metrics?.faturamento?.liquido ?? 0,
+      recebimentosMes: metrics?.caixa?.recebido_vinculado_competencia ?? 0,
+      lucroCaixaMes: metrics?.caixa?.lucro_caixa_oficina_periodo ?? 0,
+      lucroOperacionalMes: metrics?.operacional?.lucro_operacional ?? 0,
+      pecasMes: metrics?.categorias?.pecas?.liquido ?? 0,
+      servicosMaoObraMes: metrics?.categorias?.servicos?.liquido ?? 0,
+      custoPecasMes: metrics?.operacional?.custo_pecas ?? 0,
+      descontosMes: metrics?.faturamento?.descontos ?? 0,
+      alertaItensSemCusto: (metrics?.auditoria?.total_itens_livres_sem_custo ?? 0) > 0,
+      alertaLucroInflado: metrics?.auditoria?.alerta_lucro_inflado ?? false,
       
-      lucroMes: metrics?.operacional.lucro_operacional ?? 0,
-      prejuizosMes: metrics?.caixa.saidas_oficina_periodo ?? 0,
+      lucroMes: metrics?.operacional?.lucro_operacional ?? 0,
+      prejuizosMes: metrics?.caixa?.saidas_oficina_periodo ?? 0,
     },
     chartData,
     monthlyComparison,
