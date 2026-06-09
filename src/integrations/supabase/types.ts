@@ -552,6 +552,7 @@ export type Database = {
           valor: number
           valor_mao_obra: number | null
           valor_pecas: number | null
+          venda_balcao_id: string | null
         }
         Insert: {
           categoria?: string
@@ -582,6 +583,7 @@ export type Database = {
           valor: number
           valor_mao_obra?: number | null
           valor_pecas?: number | null
+          venda_balcao_id?: string | null
         }
         Update: {
           categoria?: string
@@ -612,6 +614,7 @@ export type Database = {
           valor?: number
           valor_mao_obra?: number | null
           valor_pecas?: number | null
+          venda_balcao_id?: string | null
         }
         Relationships: [
           {
@@ -662,6 +665,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_auditoria_financeira_os"
             referencedColumns: ["os_id"]
+          },
+          {
+            foreignKeyName: "financeiro_venda_balcao_id_fkey"
+            columns: ["venda_balcao_id"]
+            isOneToOne: false
+            referencedRelation: "vendas_balcao"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1252,6 +1262,132 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      marketing_events: {
+        Row: {
+          button_location: string | null
+          created_at: string
+          currency: string | null
+          event_id: string
+          event_name: string
+          fbclid: string | null
+          gclid: string | null
+          id: string
+          metadata: Json | null
+          method: string | null
+          mrp_event_name: string | null
+          page_path: string | null
+          page_url: string | null
+          plan_name: string | null
+          plan_period: string | null
+          plan_price: number | null
+          session_id: string | null
+          status: string | null
+          user_id: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          value: number | null
+          visitor_id: string | null
+        }
+        Insert: {
+          button_location?: string | null
+          created_at?: string
+          currency?: string | null
+          event_id: string
+          event_name: string
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          metadata?: Json | null
+          method?: string | null
+          mrp_event_name?: string | null
+          page_path?: string | null
+          page_url?: string | null
+          plan_name?: string | null
+          plan_period?: string | null
+          plan_price?: number | null
+          session_id?: string | null
+          status?: string | null
+          user_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          value?: number | null
+          visitor_id?: string | null
+        }
+        Update: {
+          button_location?: string | null
+          created_at?: string
+          currency?: string | null
+          event_id?: string
+          event_name?: string
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          metadata?: Json | null
+          method?: string | null
+          mrp_event_name?: string | null
+          page_path?: string | null
+          page_url?: string | null
+          plan_name?: string | null
+          plan_period?: string | null
+          plan_price?: number | null
+          session_id?: string | null
+          status?: string | null
+          user_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          value?: number | null
+          visitor_id?: string | null
+        }
+        Relationships: []
+      }
+      marketing_sessions: {
+        Row: {
+          first_seen: string
+          first_utm_campaign: string | null
+          first_utm_medium: string | null
+          first_utm_source: string | null
+          id: string
+          last_page_url: string | null
+          last_seen: string
+          metadata: Json | null
+          session_id: string
+          visitor_id: string
+        }
+        Insert: {
+          first_seen?: string
+          first_utm_campaign?: string | null
+          first_utm_medium?: string | null
+          first_utm_source?: string | null
+          id?: string
+          last_page_url?: string | null
+          last_seen?: string
+          metadata?: Json | null
+          session_id: string
+          visitor_id: string
+        }
+        Update: {
+          first_seen?: string
+          first_utm_campaign?: string | null
+          first_utm_medium?: string | null
+          first_utm_source?: string | null
+          id?: string
+          last_page_url?: string | null
+          last_seen?: string
+          metadata?: Json | null
+          session_id?: string
+          visitor_id?: string
+        }
+        Relationships: []
       }
       notificacoes: {
         Row: {
@@ -1956,6 +2092,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           id: string
+          last_oficina_id: string | null
           nome: string
           telefone: string | null
           updated_at: string
@@ -1965,6 +2102,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           id?: string
+          last_oficina_id?: string | null
           nome: string
           telefone?: string | null
           updated_at?: string
@@ -1974,12 +2112,21 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           id?: string
+          last_oficina_id?: string | null
           nome?: string
           telefone?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_last_oficina_id_fkey"
+            columns: ["last_oficina_id"]
+            isOneToOne: false
+            referencedRelation: "oficinas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rate_limit_log: {
         Row: {
@@ -2588,6 +2735,7 @@ export type Database = {
         Args: { p_solicitacao_id: string }
         Returns: Json
       }
+      cancelar_venda_balcao: { Args: { p_venda_id: string }; Returns: Json }
       check_dados_orfaos: { Args: never; Returns: number }
       check_divergencia_valores: { Args: never; Returns: number }
       check_legacy_migration: { Args: { p_email: string }; Returns: Json }
@@ -2748,11 +2896,35 @@ export type Database = {
         }
         Returns: Json
       }
-      get_invite_info: { Args: { _token: string }; Returns: Json }
-      get_metrics_financeiras_unificadas: {
+      get_financeiro_v2: {
         Args: {
           p_data_fim: string
           p_data_inicio: string
+          p_oficina_id: string
+        }
+        Returns: Json
+      }
+      get_financeiro_v2_preview_limpeza: {
+        Args: {
+          p_data_fim: string
+          p_data_inicio: string
+          p_oficina_id: string
+        }
+        Returns: Json
+      }
+      get_financeiro_v2_series: {
+        Args: {
+          p_data_fim: string
+          p_data_inicio: string
+          p_oficina_id: string
+        }
+        Returns: Json
+      }
+      get_invite_info: { Args: { _token: string }; Returns: Json }
+      get_metrics_financeiras_unificadas: {
+        Args: {
+          p_data_fim?: string
+          p_data_inicio?: string
           p_oficina_id: string
         }
         Returns: Json
@@ -2832,6 +3004,7 @@ export type Database = {
         Args: { _oficina_id: string; _user_id: string }
         Returns: boolean
       }
+      is_platform_admin: { Args: { p_user_id: string }; Returns: boolean }
       mask_chassi: {
         Args: { can_view: boolean; chassi: string }
         Returns: string
@@ -2904,12 +3077,12 @@ export type Database = {
       upsert_financeiro_os: {
         Args: {
           p_forma_pagamento_id?: string
+          p_mao_obra_valor: number
           p_numero_parcelas?: number
           p_oficina_id: string
           p_ordem_servico_id: string
           p_origem?: string
           p_tipo_servico: string
-          p_valor_mao_de_obra: number
         }
         Returns: Json
       }

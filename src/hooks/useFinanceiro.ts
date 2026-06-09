@@ -101,12 +101,23 @@ export function useFinanceiro() {
   const totalEntradas = metrics?.caixa.entradas_oficina_periodo ?? 0;
   const totalSaidas = metrics?.caixa.saidas_oficina_periodo ?? 0;
   const lucroTotal = metrics?.caixa.lucro_caixa_oficina_periodo ?? 0;
+  const faturamentoMes = metrics?.faturamento.liquido ?? 0;
+  const lucroOperacional = metrics?.operacional.lucro_operacional ?? 0;
+  const cmvTotal = metrics?.operacional.custo_pecas ?? 0;
+  const perdasOperacionais = metrics?.auditoria.valor_itens_livres_sem_custo ?? 0;
+  const saldoAReceber = metrics?.caixa.saldo_a_receber_competencia ?? 0;
+
 
   return {
     registros,
     totalEntradas,
     totalSaidas,
     lucroTotal,
+    faturamentoMes,
+    lucroOperacional,
+    cmvTotal,
+    perdasOperacionais,
+    saldoAReceber,
     isLoading: listLoading || metricsLoading,
     error: listError,
     deleteRegistro: deleteMutation.mutate,

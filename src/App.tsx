@@ -132,7 +132,9 @@ function AppContent() {
                     <Route path="/convite/:token" element={<Convite />} />
                     <Route path="/instalar" element={<Instalar />} />
                     <Route path="/termos" element={<TermosUso />} />
+                    <Route path="/termos-uso" element={<Navigate to="/termos" replace />} />
                     <Route path="/privacidade" element={<PoliticaPrivacidade />} />
+                    <Route path="/politica-privacidade" element={<Navigate to="/privacidade" replace />} />
                     <Route path="/ajuda" element={<CentralAjuda />} />
                     <Route path="/limpar" element={<LimparCache />} />
                     <Route path="/pagamento/sucesso" element={<PagamentoSucesso />} />

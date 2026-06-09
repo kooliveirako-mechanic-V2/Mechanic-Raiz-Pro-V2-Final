@@ -32,7 +32,7 @@ import { trackFunnelEvent } from "@/lib/funnelTracking";
 
 export default function Index() {
   const { user } = useAuth();
-  const { stats, chartData, monthlyComparison, isLoading } = useDashboard();
+  const { metrics, chartData, monthlyComparison, isLoading, auditoriaLimpa } = useDashboard();
   const { canViewFaturamento, canViewLucro } = useUserRole();
   const isMobile = useIsMobile();
   const { counts } = useGamification();
@@ -45,7 +45,6 @@ export default function Index() {
 
   useRouteRestore();
 
-  // Detect return from email (utm_source=email in URL)
   useEffect(() => {
     const source = searchParams.get("utm_source");
     if (source === "email" && oficinaAtual?.id) {
@@ -84,12 +83,10 @@ export default function Index() {
     return "Boa noite";
   };
 
-  const isNewUser = stats.totalClientes === 0;
-  const hasClients = (counts?.totalClientes ?? 0) > 0;
-  const hasOS = (counts?.totalOS ?? 0) > 0;
   const hasFinalized = (counts?.osFinalizadas ?? 0) > 0;
-  const isCamadaB = hasClients && !hasOS;
-  const isCamadaC = hasOS && !hasFinalized;
+  const isNewUser = (counts?.totalClientes ?? 0) === 0;
+  const isCamadaB = (counts?.totalClientes ?? 0) > 0 && (counts?.totalOS ?? 0) === 0;
+  const isCamadaC = (counts?.totalOS ?? 0) > 0 && !hasFinalized;
   const isActivated = hasFinalized;
 
   return (
@@ -98,7 +95,6 @@ export default function Index() {
       <InactivityWhatsAppRescue />
 
       <div className="space-y-6">
-        {/* ═══ FAIXA 1 — TOPO: Saudação + Busca ═══ */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -117,25 +113,18 @@ export default function Index() {
           </div>
         </motion.div>
 
-        {/* ═══ ALERTAS CRÍTICOS (banner urgente) ═══ */}
         <CriticalAlertsBanner />
 
-        {/* ═══ EMPTY STATE para novos ═══ */}
         {isNewUser && <EmptyDashboardMotivational />}
-
-        {/* ═══ ATIVAÇÃO CAMADA B: tem cliente, sem OS ═══ */}
         {isCamadaB && <ActivationCTA stage="first_os" />}
-
-        {/* ═══ ATIVAÇÃO CAMADA C: tem OS, sem finalização ═══ */}
         {isCamadaC && <ActivationCTA stage="finalize_os" osCount={counts?.totalOS ?? 0} />}
 
-        {/* ═══ FAIXA 2 — RESUMO DO NEGÓCIO (KPIs compactos no topo) ═══ */}
-        {isActivated && (
+        {isActivated && metrics && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard
               title="Serviços Hoje"
-              value={stats.servicosHoje}
-              subtitle={`${stats.servicosFinalizadosHoje} finalizados`}
+              value={metrics.servicosHoje}
+              subtitle={`${metrics.servicosFinalizadosHoje} finalizados`}
               icon={Wrench}
               variant="primary"
               delay={0}
@@ -143,25 +132,27 @@ export default function Index() {
             {canViewFaturamento && (
               <StatCard
                 title="Faturamento Mês"
-                value={formatCurrency(stats.faturamentoMes)}
+                value={formatCurrency(metrics.faturamentoMes)}
                 icon={DollarSign}
                 variant="success"
                 delay={0.03}
+                isModoLimpo={auditoriaLimpa?.isModoLimpo}
               />
             )}
             {canViewLucro && (
               <StatCard
                 title="Lucro Operacional"
-                value={formatCurrency(stats.lucroOperacionalMes)}
+                value={formatCurrency(metrics.lucroOperacional)}
                 icon={TrendingUp}
                 variant="accent"
                 delay={0.06}
+                isModoLimpo={auditoriaLimpa?.isModoLimpo}
               />
             )}
             <StatCard
               title="Clientes"
-              value={stats.totalClientes}
-              subtitle={`${stats.novosClientesMes} novos este mês`}
+              value={metrics.totalClientes} // Alterado de clientesMes para totalClientes
+              subtitle={`${metrics.clientesMes} novos este mês`}
               icon={Users}
               variant="warning"
               delay={0.09}
@@ -169,8 +160,7 @@ export default function Index() {
           </div>
         )}
 
-        {/* ═══ CARD DE PREJUÍZOS (só aparece se > 0) ═══ */}
-        {isActivated && canViewLucro && stats.prejuizosMes > 0 && !prejuizosDismissed && (
+        {isActivated && canViewLucro && metrics && (metrics.cmvTotal + metrics.perdasOperacionais) > 0 && !prejuizosDismissed && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -181,14 +171,14 @@ export default function Index() {
             </div>
             <div className="flex-1">
               <p className="text-xs font-medium text-destructive/80 uppercase tracking-wide">
-                ⚠️ Prejuízos do mês
+                ⚠️ Prejuízos/CMV do mês
               </p>
               <p className="text-xl font-bold text-destructive">
-                {formatCurrency(stats.prejuizosMes)}
+                {formatCurrency(metrics.cmvTotal + metrics.perdasOperacionais)}
               </p>
             </div>
             <p className="text-[11px] text-destructive/70 hidden sm:block">
-              Retrabalho, garantia, peça quebrada ou sinistro
+              Custo de Peças + Perdas (Retrabalho, garantia, etc)
             </p>
             <button
               type="button"
@@ -204,10 +194,8 @@ export default function Index() {
           </motion.div>
         )}
 
-        {/* ═══ FAIXA 3 — AÇÕES RÁPIDAS (cards grandes e claros) ═══ */}
         {isActivated && <DashboardQuickActions />}
 
-        {/* ═══ FAIXA 4 — PAINÉIS OPERACIONAIS: OS + Agenda lado a lado ═══ */}
         {isActivated && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <OSEmAndamentoPanel />
@@ -215,7 +203,6 @@ export default function Index() {
           </div>
         )}
 
-        {/* ═══ FAIXA 4.5 — VISUAL: Gráfico de receita + comparativo mensal ═══ */}
         {isActivated && canViewFaturamento && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2">
@@ -230,7 +217,6 @@ export default function Index() {
           </div>
         )}
 
-        {/* ═══ FAIXA 5 — ALERTAS DETALHADOS ═══ */}
         {isActivated && (
           <div id="alerts-panel">
             <AlertsPanel />

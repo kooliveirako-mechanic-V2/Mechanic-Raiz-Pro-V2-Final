@@ -1,124 +1,119 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Shield, Scale, FileText, Lock, AlertCircle, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 
 export default function TermosUso() {
   const navigate = useNavigate();
 
+  const sections = [
+    {
+      icon: Shield,
+      title: "1. Aceitação dos Termos",
+      content: "Ao acessar e utilizar o Mechanic Raiz Pro, você concorda legalmente com estes Termos de Uso. Este é um contrato entre você (ou sua oficina) e o Mechanic Raiz Pro. Se você não concordar com qualquer parte destes termos, não deverá utilizar nossos serviços."
+    },
+    {
+      icon: FileText,
+      title: "2. Descrição do Serviço",
+      content: "O Mechanic Raiz Pro é uma plataforma SaaS (Software as a Service) de gestão operacional e pré-fiscal para oficinas mecânicas. O sistema oferece ferramentas de gestão de OS, controle de estoque, orçamentos e organização financeira. IMPORTANTE: O sistema NÃO é um emissor de notas fiscais e não substitui obrigações tributárias legais."
+    },
+    {
+      icon: Lock,
+      title: "3. Cadastro e Segurança",
+      content: "Para utilizar o sistema, é necessário um cadastro válido. Você é o único responsável por manter a confidencialidade de sua senha e por todas as atividades que ocorrem em sua conta. Notifique-nos imediatamente sobre qualquer uso não autorizado."
+    },
+    {
+      icon: Scale,
+      title: "4. Propriedade Intelectual",
+      content: "Todo o conteúdo do sistema, incluindo marcas, logotipos, textos, gráficos, imagens, software e código-fonte, é de propriedade exclusiva do Mechanic Raiz Pro ou de seus licenciadores, protegidos pelas leis de propriedade intelectual brasileiras e internacionais."
+    },
+    {
+      icon: AlertCircle,
+      title: "5. Limitação de Responsabilidade",
+      content: "O Mechanic Raiz Pro não se responsabiliza por perdas de lucros, danos indiretos ou decisões comerciais baseadas em dados inseridos incorretamente pelo usuário. O sistema é fornecido 'como está' e não garantimos que será 100% livre de erros ou interrupções temporárias."
+    },
+    {
+      icon: HelpCircle,
+      title: "6. Cancelamento e Reembolso",
+      content: "Você pode cancelar sua assinatura a qualquer momento através do painel de configurações. O acesso continuará ativo até o final do período já pago. Reembolsos são analisados individualmente conforme o Código de Defesa do Consumidor."
+    }
+  ];
+
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <Button
-          variant="ghost"
-          onClick={() => navigate(-1)}
-          className="mb-6"
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-4xl mx-auto px-4 py-12">
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="mb-8"
         >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Voltar
-        </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/")}
+            className="hover:bg-slate-200 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar para o Início
+          </Button>
+        </motion.div>
 
-        <h1 className="text-3xl font-bold text-foreground mb-8">Termos de Uso</h1>
-
-        <div className="prose prose-sm dark:prose-invert max-w-none space-y-6">
-          <p className="text-muted-foreground">
-            Última atualização: Janeiro de 2026
+        <header className="text-center mb-12">
+          <motion.h1 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-4xl font-extrabold text-slate-900 mb-4"
+          >
+            Termos de Uso
+          </motion.h1>
+          <p className="text-slate-500 font-medium italic">
+            Última atualização: 08 de Junho de 2026
           </p>
+        </header>
 
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">1. Aceitação dos Termos</h2>
-            <p className="text-muted-foreground">
-              Ao acessar e utilizar o Mechanic Raiz Pro, você concorda com estes Termos de Uso. 
-              Se você não concordar com qualquer parte destes termos, não deverá utilizar nossos serviços.
-            </p>
-          </section>
+        <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+          <div className="p-8 md:p-12 space-y-12">
+            {sections.map((section, index) => (
+              <motion.section 
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-50 rounded-lg">
+                    <section.icon className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-slate-800">{section.title}</h2>
+                </div>
+                <p className="text-slate-600 leading-relaxed text-lg">
+                  {section.content}
+                </p>
+              </motion.section>
+            ))}
 
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">2. Descrição do Serviço</h2>
-            <p className="text-muted-foreground">
-              O Mechanic Raiz Pro é um sistema de gestão operacional e pré-fiscal para oficinas mecânicas, 
-              auto elétricas e centros automotivos. O sistema oferece funcionalidades como:
-            </p>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-2">
-              <li>Gestão de ordens de serviço</li>
-              <li>Controle de clientes e veículos</li>
-              <li>Gestão financeira básica</li>
-              <li>Controle de estoque</li>
-              <li>Orçamentos e propostas</li>
-              <li>Agenda e agendamentos</li>
-            </ul>
-            <p className="text-muted-foreground font-medium">
-              Importante: O Mechanic Raiz Pro NÃO emite notas fiscais. É um sistema de gestão operacional 
-              e pré-fiscal para organização interna da oficina.
-            </p>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">3. Cadastro e Conta</h2>
-            <p className="text-muted-foreground">
-              Para utilizar o sistema, você deve criar uma conta fornecendo informações verdadeiras e completas. 
-              Você é responsável por manter a confidencialidade de suas credenciais de acesso.
-            </p>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">4. Uso Aceitável</h2>
-            <p className="text-muted-foreground">
-              Você concorda em utilizar o Mechanic Raiz Pro apenas para fins legais e de acordo com estes termos. 
-              É proibido:
-            </p>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-2">
-              <li>Compartilhar credenciais de acesso com terceiros não autorizados</li>
-              <li>Tentar acessar áreas restritas do sistema</li>
-              <li>Utilizar o sistema para atividades ilegais</li>
-              <li>Fazer engenharia reversa ou copiar o código-fonte</li>
-            </ul>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">5. Planos e Pagamentos</h2>
-            <p className="text-muted-foreground">
-              O Mechanic Raiz Pro oferece diferentes planos de assinatura. Os valores e condições são apresentados 
-              na página de planos. O pagamento é processado de forma segura através de parceiros homologados.
-            </p>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">6. Propriedade Intelectual</h2>
-            <p className="text-muted-foreground">
-              Todo o conteúdo, design, código e funcionalidades do Mechanic Raiz Pro são de propriedade exclusiva 
-              da empresa desenvolvedora e estão protegidos por leis de propriedade intelectual.
-            </p>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">7. Limitação de Responsabilidade</h2>
-            <p className="text-muted-foreground">
-              O Mechanic Raiz Pro é fornecido "como está". Não nos responsabilizamos por:
-            </p>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-2">
-              <li>Interrupções temporárias no serviço</li>
-              <li>Perda de dados devido a mau uso</li>
-              <li>Decisões comerciais baseadas nas informações do sistema</li>
-              <li>Erros de cálculo por dados incorretos inseridos pelo usuário</li>
-            </ul>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">8. Alterações nos Termos</h2>
-            <p className="text-muted-foreground">
-              Reservamo-nos o direito de modificar estes termos a qualquer momento. 
-              Alterações significativas serão comunicadas por e-mail ou notificação no sistema.
-            </p>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">9. Contato</h2>
-            <p className="text-muted-foreground">
-              Para dúvidas sobre estes Termos de Uso, entre em contato através do WhatsApp: 
-              (11) 95089-1497 ou e-mail: suporte@mechanicraizpro.com.br
-            </p>
-          </section>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.7 }}
+              className="pt-8 border-t border-slate-100 mt-12"
+            >
+              <h3 className="text-xl font-bold text-slate-900 mb-4 text-center">Dúvidas sobre os Termos?</h3>
+              <div className="flex flex-col sm:flex-row justify-center items-center gap-6">
+                <a href="mailto:suporte@mechanicraizpro.com.br" className="text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-2">
+                  📧 suporte@mechanicraizpro.com.br
+                </a>
+                <a href="https://wa.me/5511950891497" target="_blank" rel="noreferrer" className="text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-2">
+                  📱 WhatsApp Suporte
+                </a>
+              </div>
+            </motion.div>
+          </div>
         </div>
+
+        <footer className="mt-12 text-center text-slate-400 text-sm">
+          <p>© 2026 Mechanic Raiz Pro - Todos os direitos reservados.</p>
+        </footer>
       </div>
     </div>
   );

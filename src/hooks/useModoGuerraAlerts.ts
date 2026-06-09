@@ -60,8 +60,8 @@ export interface ModoGuerraStats {
 
 export function useModoGuerraAlerts() {
   const { oficinaAtual } = useOficina();
-  const { indicators, isLoading: indicatorsLoading } = useProfitIndicators();
-  const { alerts: smartAlerts, isLoading: alertsLoading } = useSmartAlerts();
+  const { indicators, isLoading: indicatorsLoading, refetch: refetchIndicators } = useProfitIndicators();
+  const { alerts: smartAlerts, isLoading: alertsLoading, refetch: refetchAlerts } = useSmartAlerts();
   const { currentPlan } = usePlan();
   const { labels, isAutoEletrica } = useOficinaLabels();
   
@@ -221,8 +221,27 @@ export function useModoGuerraAlerts() {
       });
 
     // ============================================
-    // 6. ESTOQUE CRÍTICO (de smartAlerts)
+    // 6. ITENS SEM CUSTO (ALERTA DE SEGURANÇA)
     // ============================================
+    if (indicators.alertasCriticos.some(a => a.tipo === "itens_sem_custo")) {
+      alerts.push({
+        id: "alerta-sem-custo-global",
+        tipo: "servico_problematico",
+        severity: "critical",
+        status: "ativo",
+        impactoFinanceiro: 0,
+        impactoLabel: "Risco de lucro falso",
+        titulo: "⚠️ Itens sem custo detectados",
+        descricao: "Existem itens sendo vendidos sem custo de aquisição registrado. Isso infla o lucro artificialmente.",
+        timestamp: agora,
+        acaoRecomendada: "Cadastrar custo médio ou preço de compra nos produtos",
+        ctaPrimario: "Ver estoque",
+        ctaSecundario: "Entendido",
+        referenciaTipo: "estoque"
+      });
+    }
+
+    // 7. ESTOQUE CRÍTICO (de smartAlerts)
     smartAlerts
       .filter(a => a.type === "stock" && a.severity === "critical")
       .slice(0, 3)
@@ -246,6 +265,7 @@ export function useModoGuerraAlerts() {
           referenciaTipo: "estoque",
         });
       });
+
 
     // Ordenar por severidade e impacto
     return alerts.sort((a, b) => {
@@ -342,5 +362,9 @@ export function useModoGuerraAlerts() {
     resolverAlerta,
     ignorarAlerta,
     reativarAlerta,
+    refetch: () => {
+      refetchIndicators();
+      refetchAlerts();
+    }
   };
 }

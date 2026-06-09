@@ -32,7 +32,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useFinanceiroPreFiscal } from "@/hooks/useFinanceiroPreFiscal";
-import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { useFinanceiroPreFiscalUnificado } from "@/hooks/useFinanceiroPreFiscalUnificado";
+import { FEATURE_FLAGS_V2 } from "@/config/featureFlagsV2";
+import { Shield } from "lucide-react";
+
+import { format, subMonths, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { FinanceiroPreFiscalModal } from "@/components/forms/FinanceiroPreFiscalModal";
 import { toast } from "sonner";
@@ -57,34 +61,32 @@ export function MobileFinanceiroPreFiscal() {
   const [contadorMonth, setContadorMonth] = useState(new Date());
   const [valoresOcultos, setValoresOcultos] = useState(() => sessionStorage.getItem("fin_hidden") === "true");
 
+  const dataInicioContador = format(startOfMonth(contadorMonth), "yyyy-MM-dd");
+  const dataFimContador = format(endOfMonth(contadorMonth), "yyyy-MM-dd");
+
+  const { data: preFiscalContador, isLoading: isLoadingPreFiscal } = useFinanceiroPreFiscalUnificado(dataInicioContador, dataFimContador);
+
+  const dataInicioAtual = format(startOfMonth(new Date()), "yyyy-MM-dd");
+  const dataFimAtual = format(endOfMonth(new Date()), "yyyy-MM-dd");
+  const { data: metricsAtuais } = useFinanceiroPreFiscalUnificado(dataInicioAtual, dataFimAtual);
+
+  const totalEntradas = metricsAtuais?.competencia.faturamentoBruto || 0;
+  const totalSaidas = metricsAtuais?.caixa.saidasPagas || 0;
+  const lucroTotal = metricsAtuais?.resultado.lucroOperacional || 0;
+
   const maskValue = (value: number) => valoresOcultos ? "••••••" : formatCurrency(value);
   
   const { 
     registros, 
-    totalEntradas, 
-    totalSaidas, 
-    lucroTotal,
     isLoading, 
     deleteRegistro 
   } = useFinanceiroPreFiscal();
 
-  // Dados filtrados pelo mês selecionado para o contador
-  const contadorData = useMemo(() => {
-    const inicio = startOfMonth(contadorMonth);
-    const fim = endOfMonth(contadorMonth);
-    const filtered = registros.filter(r => {
-      const d = new Date(r.data);
-      return d >= inicio && d <= fim;
-    });
-    const entradas = filtered.filter(r => r.tipo === "entrada").reduce((s, r) => s + Number(r.valor), 0);
-    const saidas = filtered.filter(r => r.tipo === "saida").reduce((s, r) => s + Number(r.valor), 0);
-    const empresa = filtered.filter(r => r.classificacao === "empresa");
-    const pessoal = filtered.filter(r => r.classificacao === "pessoal");
-    return { filtered, entradas, saidas, lucro: entradas - saidas, empresa, pessoal, total: filtered.length };
-  }, [registros, contadorMonth]);
+
+
 
   const handleExportContador = useCallback(() => {
-    if (contadorData.total === 0) {
+    if (!preFiscalContador || preFiscalContador.analitico.length === 0) {
       toast.error("Nenhum registro neste mês");
       return;
     }
@@ -93,23 +95,36 @@ export function MobileFinanceiroPreFiscal() {
     const esc = (s: string | null | undefined) => s ? `"${s.replace(/"/g, '""')}"` : "";
     
     let csv = "\uFEFF"; // BOM
-    csv += "Data,Tipo,Categoria,Descrição,Valor,Classificação,Status\n";
-    contadorData.filtered.forEach(r => {
+    csv += "Data Competência,Data Pagamento,Tipo,Categoria,Descrição,Valor Bruto,Desconto,Valor Líquido,Status,Documento,Ressalva Histórica\n";
+    
+    preFiscalContador.analitico.forEach(r => {
       csv += [
-        format(new Date(r.data), "dd/MM/yyyy"),
+        format(parseISO(r.data_competencia), "dd/MM/yyyy"),
+        r.data_pagamento ? format(parseISO(r.data_pagamento), "dd/MM/yyyy") : "",
         r.tipo === "entrada" ? "Receita" : "Despesa",
-        (r as any).categoria_obj?.nome || r.origem,
+        esc(r.categoria),
         esc(r.descricao),
-        `"${r.tipo === "entrada" ? "" : "-"}${fmtVal(Number(r.valor))}"`,
-        r.classificacao === "empresa" ? "Empresa" : "Pessoal",
-        r.status === "pago" ? "Pago" : r.status === "a_receber" ? "A Receber" : r.status === "a_pagar" ? "A Pagar" : r.status,
+        fmtVal(Number(r.valor_bruto)),
+        fmtVal(Number(r.desconto)),
+        fmtVal(Number(r.valor_liquido)),
+        esc(r.status),
+        esc(r.numero_documento),
+        preFiscalContador.alertas.historicoComRessalva ? "Sim" : "Não"
       ].join(",") + "\n";
     });
-    csv += `\n,,TOTAL RECEITAS,,${fmtVal(contadorData.entradas)},,\n`;
-    csv += `,,TOTAL DESPESAS,,"${fmtVal(contadorData.saidas)}",,\n`;
-    csv += `,,LUCRO BRUTO,,${fmtVal(contadorData.lucro)},,\n`;
-    csv += `\n,,Registros Empresa,,${contadorData.empresa.length},,\n`;
-    csv += `,,Registros Pessoal,,${contadorData.pessoal.length},,\n`;
+
+    csv += `\n,,RESUMO CAIXA (PAGOS)\n`;
+    csv += `,,Entradas Pagas,,${fmtVal(preFiscalContador.caixa.entradasPagas)}\n`;
+    csv += `,,Saídas Pagas,,${fmtVal(preFiscalContador.caixa.saidasPagas)}\n`;
+    csv += `,,Saldo Caixa,,${fmtVal(preFiscalContador.caixa.lucroCaixa)}\n\n`;
+
+    csv += `,,RESUMO COMPETÊNCIA (FINALIZADOS)\n`;
+    csv += `,,Faturamento Bruto,,${fmtVal(preFiscalContador.competencia.faturamentoBruto)}\n`;
+    csv += `,,Descontos,,${fmtVal(preFiscalContador.competencia.descontos)}\n`;
+    csv += `,,Faturamento Líquido,,${fmtVal(preFiscalContador.competencia.faturamentoLiquido)}\n`;
+    csv += `,,CMV Total,,${fmtVal(preFiscalContador.custos.cmvTotal)}\n`;
+    csv += `,,Lucro Operacional,,${fmtVal(preFiscalContador.resultado.lucroOperacional)}\n`;
+    csv += `,,Saldo a Receber,,${fmtVal(preFiscalContador.competencia.saldoAReceber)}\n`;
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -121,7 +136,8 @@ export function MobileFinanceiroPreFiscal() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     toast.success("Relatório baixado!", { description: `relatorio_contador_${mesLabel}.csv` });
-  }, [contadorData, contadorMonth]);
+  }, [preFiscalContador, contadorMonth]);
+
 
   // Chart data - últimos 4 meses
   const chartData = useMemo(() => {
@@ -285,6 +301,19 @@ export function MobileFinanceiroPreFiscal() {
       {/* Compras de Material no mês (insight do Moisés) */}
       <ComprasMaterialCard dateFilter={null} valoresOcultos={valoresOcultos} variant="mobile" />
 
+      {FEATURE_FLAGS_V2.FINANCEIRO_V2_IGNORE_TEST_MANIFEST_ENABLED && metricsAtuais && (metricsAtuais as any).modo === "preview_limpeza_logica" && (
+        <div className="bg-info/10 border border-info/30 rounded-xl p-3 flex items-start gap-3">
+          <Shield className="w-5 h-5 text-info shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-[10px] text-info uppercase font-bold tracking-wide">Modo V2 Limpo Ativo</p>
+            <p className="text-[11px] text-info/90 leading-tight">
+              Registros de teste ignorados por manifesto ({ (metricsAtuais as any).auditoria?.registros_ignorados_por_manifesto?.length || 0} itens). 
+              Nenhum dado real foi alterado fisicamente.
+            </p>
+          </div>
+        </div>
+      )}
+
 
 
       {/* Botão principal único — Nova Movimentação */}
@@ -343,35 +372,48 @@ export function MobileFinanceiroPreFiscal() {
           </div>
 
           {/* Resumo do mês */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-success/5 rounded-lg p-2 text-center">
-              <p className="text-[10px] text-muted-foreground uppercase">Receitas</p>
-              <p className="text-xs font-bold text-success">{fmt(contadorData.entradas)}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-muted/30 rounded-lg p-2">
+              <p className="text-[10px] text-muted-foreground uppercase mb-1 font-semibold">Competência</p>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px]">
+                  <span>Faturamento:</span>
+                  <span className="font-bold">{fmt(preFiscalContador?.competencia.faturamentoBruto || 0)}</span>
+                </div>
+                <div className="flex justify-between text-[11px]">
+                  <span>Lucro Oper.:</span>
+                  <span className="font-bold text-success">{fmt(preFiscalContador?.resultado.lucroOperacional || 0)}</span>
+                </div>
+              </div>
             </div>
-            <div className="bg-destructive/5 rounded-lg p-2 text-center">
-              <p className="text-[10px] text-muted-foreground uppercase">Despesas</p>
-              <p className="text-xs font-bold text-destructive">{fmt(contadorData.saidas)}</p>
-            </div>
-            <div className={cn("rounded-lg p-2 text-center", contadorData.lucro >= 0 ? "bg-success/5" : "bg-destructive/5")}>
-              <p className="text-[10px] text-muted-foreground uppercase">Lucro</p>
-              <p className={cn("text-xs font-bold", contadorData.lucro >= 0 ? "text-success" : "text-destructive")}>
-                {fmt(contadorData.lucro)}
-              </p>
+            <div className="bg-muted/30 rounded-lg p-2">
+              <p className="text-[10px] text-muted-foreground uppercase mb-1 font-semibold">Caixa</p>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px]">
+                  <span>Entradas:</span>
+                  <span className="font-bold text-success">{fmt(preFiscalContador?.caixa.entradasPagas || 0)}</span>
+                </div>
+                <div className="flex justify-between text-[11px]">
+                  <span>Saídas:</span>
+                  <span className="font-bold text-destructive">-{fmt(preFiscalContador?.caixa.saidasPagas || 0)}</span>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Info registros */}
           <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-            <span>{contadorData.total} registros</span>
-            <span>{contadorData.empresa.length} empresa • {contadorData.pessoal.length} pessoal</span>
+            <span>{preFiscalContador?.analitico.length || 0} lançamentos</span>
+            <span className="text-amber-600 font-medium">Saldo a Receber: {fmt(preFiscalContador?.competencia.saldoAReceber || 0)}</span>
           </div>
+
 
           {/* Botão de download */}
           <Button
             className="w-full"
             variant="outline"
             onClick={handleExportContador}
-            disabled={contadorData.total === 0}
+            disabled={!preFiscalContador || preFiscalContador.analitico.length === 0}
           >
             <Download className="w-4 h-4 mr-2" />
             Baixar CSV — {format(contadorMonth, "MMM/yy", { locale: ptBR })}

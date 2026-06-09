@@ -382,6 +382,62 @@ export function trackEvent(mrpEventName: string, options: TrackEventOptions = {}
     }
   }
 
+  // 2) Marketing Oracle (Auditor-only mode)
+  // Registra no banco de dados para auditoria interna. 
+  // O Oracle NÃO deve enviar eventos para CAPI ainda nesta fase.
+  const recordToOracle = async () => {
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      await supabase.from("marketing_events").insert({
+        event_id: eventId,
+        event_name: mrpEventName,
+        mrp_event_name: mrpEventName,
+        visitor_id: visitorId,
+        session_id: sessionId,
+        page_url: context.page_url,
+        page_path: context.page_path,
+        utm_source: context.utm_source,
+        utm_medium: context.utm_medium,
+        utm_campaign: context.utm_campaign,
+        utm_content: context.utm_content,
+        utm_term: context.utm_term,
+        fbclid: context.fbclid,
+        gclid: context.gclid,
+        plan_name: params.plan_name || null,
+        plan_period: params.plan_period || null,
+        plan_price: params.plan_price || null,
+        value: params.value || null,
+        currency: params.currency || 'BRL',
+        button_location: params.button_location || null,
+        method: params.method || null,
+        status: params.status || null,
+        user_id: user?.id || null,
+        metadata: params
+      });
+
+      // Update session if it's a new or existing visitor
+      if (visitorId) {
+        await supabase.from("marketing_sessions").upsert({
+          visitor_id: visitorId,
+          session_id: sessionId,
+          last_seen: new Date().toISOString(),
+          last_page_url: context.page_url,
+          first_utm_source: context.utm_source,
+          first_utm_medium: context.utm_medium,
+          first_utm_campaign: context.utm_campaign,
+        }, { onConflict: 'visitor_id' });
+      }
+    } catch (e) {
+      // Fail silently for the user, but we'll see logs if needed
+      console.warn("[Oracle Auditor] failed to log event", e);
+    }
+  };
+
+  // Fire-and-forget
+  recordToOracle();
+
   // [Fase G] Disparos diretos de Meta Pixel (fbq) e MOCapi/CAPI removidos.
   void skipPixel; void skipMocapi;
 

@@ -33,11 +33,22 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
-  // Wrapper to persist oficinaAtual to localStorage
-  const setOficinaAtual = (oficina: Oficina | null) => {
+  // Wrapper to persist oficinaAtual to localStorage and Profile
+  const setOficinaAtual = async (oficina: Oficina | null) => {
     setOficinaAtualState(oficina);
     if (oficina) {
       localStorage.setItem('oficinaAtual', JSON.stringify(oficina));
+      
+      // Persist to profile for cross-device consistency
+      if (user?.id) {
+        supabase
+          .from('profiles')
+          .update({ last_oficina_id: oficina.id })
+          .eq('user_id', user.id)
+          .then(({ error }) => {
+            if (error) console.error('[OficinaContext] Error updating last_oficina_id:', error);
+          });
+      }
     } else {
       localStorage.removeItem('oficinaAtual');
     }
@@ -58,12 +69,12 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
     setLoading(true);
 
     try {
-      // Fetch oficinas where user is owner
+      // Fetch oficinas where user is owner - sorted by created_at (oldest first as they are usually the main ones)
       const { data: ownedData, error: ownedError } = await supabase
         .from("oficinas")
         .select("*")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: true });
 
       if (ownedError) throw ownedError;
 
@@ -93,25 +104,43 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
 
       setOficinas(data || []);
       
-      // Try to restore oficina from localStorage first
-      const savedOficina = localStorage.getItem('oficinaAtual');
-      if (savedOficina && data && data.length > 0) {
-        try {
-          const parsed = JSON.parse(savedOficina);
-          // Verify the saved oficina still exists and belongs to this user
-          const found = data.find((o) => o.id === parsed.id);
-          if (found) {
-            setOficinaAtualState(found);
-          } else {
-            // Saved oficina not found, use first one
-            setOficinaAtual(data[0]);
-          }
-        } catch {
-          setOficinaAtual(data[0]);
+      // 1. Try to restore from Profile (most reliable)
+      let initialOficina: Oficina | null = null;
+      
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('last_oficina_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+          
+        if (profile?.last_oficina_id) {
+          initialOficina = data.find(o => o.id === profile.last_oficina_id) || null;
         }
-      } else if (data && data.length > 0) {
-        // No saved oficina, use first one
-        setOficinaAtual(data[0]);
+      }
+
+      // 2. Fallback to localStorage
+      if (!initialOficina) {
+        const savedOficina = localStorage.getItem('oficinaAtual');
+        if (savedOficina) {
+          try {
+            const parsed = JSON.parse(savedOficina);
+            initialOficina = data.find((o) => o.id === parsed.id) || null;
+          } catch (e) {
+            console.error('[OficinaContext] Error parsing localStorage:', e);
+          }
+        }
+      }
+
+      // 3. Fallback to the one with the most data (heuristic to avoid ghost workshops)
+      if (!initialOficina && data.length > 0) {
+        // Since we can't easily check all counts here without multiple queries, 
+        // we'll just pick the first one but we've improved the order in fetchOficinas if possible.
+        initialOficina = data[0];
+      }
+
+      if (initialOficina) {
+        setOficinaAtualState(initialOficina);
       }
     } catch (error) {
       console.error("Error fetching oficinas:", error);

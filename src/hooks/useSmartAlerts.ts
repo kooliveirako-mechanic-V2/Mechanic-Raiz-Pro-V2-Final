@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOficina } from "@/contexts/OficinaContext";
-import { differenceInDays, parseISO, addDays, isBefore, isToday } from "date-fns";
+import { differenceInDays, parseISO, addDays, isBefore, isToday, format, startOfMonth, endOfMonth } from "date-fns";
+import { FEATURE_FLAGS_V2 } from "@/config/featureFlagsV2";
+import { financeiroV2Service } from "@/services/financeiroV2Service";
 
 // ============================================
 // MODO GUERRA PRO - ALERTAS INTELIGENTES
@@ -23,7 +25,8 @@ export type AlertType =
   | "client_loss"
   | "diagnostic_undercharged"
   | "parcela_atrasada"
-  | "parcela_vencendo";
+  | "parcela_vencendo"
+  | "audit_logic_clean";
 
 export type AlertSeverity = "critical" | "warning" | "info";
 
@@ -371,6 +374,33 @@ export function useSmartAlerts() {
           });
         }
       });
+
+      // ============================================
+      // 8. ALERTA DE AUDITORIA LÓGICA V2 (Portão 8C)
+      // ============================================
+      if (FEATURE_FLAGS_V2.FINANCEIRO_V2_IGNORE_TEST_MANIFEST_ENABLED) {
+        try {
+          const inicio = format(startOfMonth(hoje), "yyyy-MM-dd");
+          const fim = format(endOfMonth(hoje), "yyyy-MM-dd");
+          const preview = await financeiroV2Service.getFinanceiroV2PreviewLimpeza(oficinaAtual.id, inicio, fim);
+          
+          if (preview.auditoria?.registros_ignorados_por_manifesto?.length > 0) {
+            const count = preview.auditoria.registros_ignorados_por_manifesto.length;
+            const faturamentoIgnorado = preview.auditoria.registros_ignorados_por_manifesto.reduce((sum, r) => sum + (r.valor_liquido || 0), 0);
+            
+            allAlerts.push({
+              id: "audit-v2-clean",
+              type: "audit_logic_clean",
+              severity: "info",
+              title: "Modo V2 Limpo Ativo",
+              description: `${count} registros de teste ignorados por manifesto. Faturamento reduzido em R$ ${faturamentoIgnorado.toFixed(0)}. Nenhum dado real foi alterado.`,
+              time: "Auditável",
+            });
+          }
+        } catch (err) {
+          console.error("[SmartAlerts] Erro ao buscar auditoria V2:", err);
+        }
+      }
 
       // Ordenar: críticos primeiro, depois warning, depois info
       const severityOrder: Record<AlertSeverity, number> = {

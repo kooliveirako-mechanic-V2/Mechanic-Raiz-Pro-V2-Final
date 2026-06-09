@@ -32,7 +32,7 @@ function gerarVeredictoCliente(classificacao: string, margem: number): string {
 export function useProfitIndicators() {
   const { oficinaAtual } = useOficina();
 
-  const { data: rankings, isLoading, error } = useQuery({
+  const { data: rankings, isLoading, error, refetch } = useQuery({
     queryKey: ["profitIndicators-unified", oficinaAtual?.id],
     queryFn: async () => {
       if (!oficinaAtual) return null;
@@ -45,6 +45,7 @@ export function useProfitIndicators() {
         inicio: inicioMes,
         fim: fimMes,
       });
+
     },
     enabled: !!oficinaAtual,
     staleTime: 5 * 60 * 1000,
@@ -90,11 +91,19 @@ export function useProfitIndicators() {
         prejuizo_ou_margem_baixa: s.lucro_total,
         recomendacao: s.lucro_total < 0 ? "Revisar custos ou parar de oferecer" : "Aumentar preço ou otimizar processo"
       })),
-    alertasCriticos: rankings.geral.lucro_geral < 0 ? [{
-      tipo: "os_prejuizo",
-      mensagem: "Operação geral com prejuízo este mês.",
-      impacto: Math.abs(rankings.geral.lucro_geral)
-    }] : []
+    alertasCriticos: [
+      ...(rankings.geral.lucro_geral < 0 ? [{
+        tipo: "os_prejuizo",
+        mensagem: "Operação geral com prejuízo este mês.",
+        impacto: Math.abs(rankings.geral.lucro_geral)
+      }] : []),
+      ...(rankings.geral.custo_geral === 0 && rankings.geral.faturamento_geral > 0 ? [{
+        tipo: "itens_sem_custo",
+        mensagem: "⚠️ Atenção: Itens sem custo detectados. Lucro pode estar inflado.",
+        impacto: 0
+      }] : [])
+    ]
+
   } : {
     margemMediaGeral: 0,
     totalOSAnalisadas: 0,
@@ -111,5 +120,6 @@ export function useProfitIndicators() {
     indicators: processedData,
     isLoading,
     error,
+    refetch,
   };
 }

@@ -12,8 +12,8 @@ import { formatCurrency } from "@/lib/formatters";
 
 interface ChartDataPoint {
   mes: string;
-  faturamento: number;
-  lucro: number;
+  faturamentoLiquido: number;
+  lucroOperacional: number;
 }
 
 interface RevenueChartProps {
@@ -21,17 +21,17 @@ interface RevenueChartProps {
 }
 
 const defaultData = [
-  { mes: "Jan", faturamento: 0, lucro: 0 },
-  { mes: "Fev", faturamento: 0, lucro: 0 },
-  { mes: "Mar", faturamento: 0, lucro: 0 },
-  { mes: "Abr", faturamento: 0, lucro: 0 },
-  { mes: "Mai", faturamento: 0, lucro: 0 },
-  { mes: "Jun", faturamento: 0, lucro: 0 },
+  { mes: "Jan", faturamentoLiquido: 0, lucroOperacional: 0 },
+  { mes: "Fev", faturamentoLiquido: 0, lucroOperacional: 0 },
+  { mes: "Mar", faturamentoLiquido: 0, lucroOperacional: 0 },
+  { mes: "Abr", faturamentoLiquido: 0, lucroOperacional: 0 },
+  { mes: "Mai", faturamentoLiquido: 0, lucroOperacional: 0 },
+  { mes: "Jun", faturamentoLiquido: 0, lucroOperacional: 0 },
 ];
 
 export function RevenueChart({ data }: RevenueChartProps) {
   const chartData = data && data.length > 0 ? data : defaultData;
-  const hasData = chartData.some(d => d.faturamento > 0 || d.lucro > 0);
+  const hasData = chartData.some(d => d.faturamentoLiquido > 0 || d.lucroOperacional > 0);
 
   return (
     <div className="bg-card rounded-xl border border-border p-6">
@@ -69,8 +69,8 @@ export function RevenueChart({ data }: RevenueChartProps) {
               <XAxis dataKey="mes" tick={{ fill: "hsl(220, 9%, 46%)", fontSize: 12 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: "hsl(220, 9%, 46%)", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
               <Tooltip formatter={(value: number) => [formatCurrency(value)]} />
-              <Area type="monotone" dataKey="faturamento" stroke="hsl(222, 47%, 20%)" strokeWidth={2} fill="url(#colorFaturamento)" name="Faturamento" />
-              <Area type="monotone" dataKey="lucro" stroke="hsl(24, 95%, 53%)" strokeWidth={2} fill="url(#colorLucro)" name="Lucro" />
+              <Area type="monotone" dataKey="faturamentoLiquido" stroke="hsl(222, 47%, 20%)" strokeWidth={2} fill="url(#colorFaturamento)" name="Faturamento" />
+              <Area type="monotone" dataKey="lucroOperacional" stroke="hsl(24, 95%, 53%)" strokeWidth={2} fill="url(#colorLucro)" name="Lucro" />
             </AreaChart>
           </ResponsiveContainer>
         )}
@@ -79,11 +79,11 @@ export function RevenueChart({ data }: RevenueChartProps) {
       <div className="flex items-center justify-center gap-6 mt-4">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(222, 47%, 20%)" }} />
-          <span className="text-xs text-muted-foreground">Faturamento Bruto</span>
+          <span className="text-xs text-muted-foreground">Faturamento Líquido</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(24, 95%, 53%)" }} />
-          <span className="text-xs text-muted-foreground">Lucro Real</span>
+          <span className="text-xs text-muted-foreground">Lucro Operacional</span>
         </div>
       </div>
     </div>

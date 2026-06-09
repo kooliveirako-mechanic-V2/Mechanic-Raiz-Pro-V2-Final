@@ -2,33 +2,50 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOficina } from "@/contexts/OficinaContext";
 import { startOfMonth, endOfMonth, format, subMonths } from "date-fns";
-import { getUnifiedMetrics } from "@/services/financeiroService";
+import { FEATURE_FLAGS_V2 } from "@/config/featureFlagsV2";
+import { 
+  getUnifiedMetrics, 
+  getUnifiedRankings, 
+  getUnifiedSeries,
+  type UnifiedMetrics, 
+  type UnifiedRankings,
+  type UnifiedSeriesData 
+} from "@/services/financeiroService";
+import { useDashboardV2 } from "./useDashboardV2";
 
-export interface DashboardStats {
+// FEATURE FLAG: FINANCEIRO_V2_DASHBOARD_ENABLED
+// Se false, mantém dashboard legado. Se true, ativa camada V2.
+export const FINANCEIRO_V2_DASHBOARD_ENABLED = FEATURE_FLAGS_V2.DASHBOARD_V2_ENABLED;
+
+export interface UnifiedDashboardMetrics {
+  faturamentoMes: number;
+  lucroOperacional: number;
+  cmvTotal: number;
+  perdasOperacionais: number;
+  prejuizosMes: number;
+  caixa: number;
+  entradasPagas: number;
+  saidasPagas: number;
+  saldoAReceber: number;
+  clientesMes: number;
+  totalClientes: number; // Novo campo para o card de Clientes
   servicosHoje: number;
   servicosFinalizadosHoje: number;
-  faturamentoMes: number;
-  lucroMes: number;
-  prejuizosMes: number;
-  totalClientes: number;
-  novosClientesMes: number;
   servicosAtrasados: number;
   estoqueBaixo: number;
-  recebimentosMes: number;
-  lucroCaixaMes: number;
-  lucroOperacionalMes: number;
-  pecasMes: number;
-  servicosMaoObraMes: number;
-  custoPecasMes: number;
-  descontosMes: number;
-  alertaItensSemCusto: boolean;
-  alertaLucroInflado: boolean;
-}
-
-export interface ChartData {
-  mes: string;
-  faturamento: number;
-  lucro: number;
+  comparativoMensal: {
+    faturamentoAtual: number;
+    faturamentoAnterior: number;
+    servicosAtual: number;
+    servicosAnterior: number;
+    clientesAtual: number;
+    clientesAnterior: number;
+  };
+  graficoMensal: Array<{
+    mes: string;
+    faturamentoLiquido: number;
+    lucroOperacional: number;
+  }>;
 }
 
 export interface TopService {
@@ -45,78 +62,83 @@ export interface TopClient {
 }
 
 /**
- * Dashboard hook otimizado - FASE 2.
- * Consome exclusivamente a fonte única get_metrics_financeiras_unificadas.
+ * Dashboard hook otimizado - FASE 2B.
+ * Consome exclusivamente fontes unificadas de financeiroService.
  */
 export function useDashboard() {
   const { oficinaAtual } = useOficina();
 
-  // ── Fonte Única da Verdade (Mês Atual) ─────────────────────
+  // Hook V2 (sempre instanciado mas condicionalmente usado)
+  const dashboardV2Hook = useDashboardV2();
+  const { metrics: metricsV2, isLoading: metricsV2Loading, error: metricsV2Error } = dashboardV2Hook;
+
+  // 1. Métricas Principais (Mês Atual) - LEGADO
   const { data: metrics, isLoading: metricsLoading, error: metricsError } = useQuery({
     queryKey: ["financeiro-unificado-atual", oficinaAtual?.id],
     queryFn: async () => {
-      if (!oficinaAtual) return null;
-      const inicio = format(startOfMonth(new Date()), "yyyy-MM-dd");
-      const fim = format(endOfMonth(new Date()), "yyyy-MM-dd");
+      if (!oficinaAtual?.id || FINANCEIRO_V2_DASHBOARD_ENABLED) return null;
       return await getUnifiedMetrics({
         oficinaId: oficinaAtual.id,
-        inicio,
-        fim,
+        inicio: format(startOfMonth(new Date()), "yyyy-MM-dd"),
+        fim: format(endOfMonth(new Date()), "yyyy-MM-dd"),
       });
     },
-    enabled: !!oficinaAtual,
-    staleTime: 30_000,
+    enabled: !!oficinaAtual?.id && !FINANCEIRO_V2_DASHBOARD_ENABLED,
+    staleTime: 30000,
   });
 
-  // ── Comparativo Mensal (Mês Anterior) ──────────────────────
-  const { data: metricsPrev, isLoading: metricsPrevLoading, error: metricsPrevError } = useQuery({
+  // 2. Métricas Mês Anterior (para comparativo) - LEGADO
+  const { data: metricsPrev, isLoading: metricsPrevLoading } = useQuery({
     queryKey: ["financeiro-unificado-anterior", oficinaAtual?.id],
     queryFn: async () => {
-      if (!oficinaAtual) return null;
+      if (!oficinaAtual?.id || FINANCEIRO_V2_DASHBOARD_ENABLED) return null;
       const prevMonth = subMonths(new Date(), 1);
-      const inicio = format(startOfMonth(prevMonth), "yyyy-MM-dd");
-      const fim = format(endOfMonth(prevMonth), "yyyy-MM-dd");
       return await getUnifiedMetrics({
         oficinaId: oficinaAtual.id,
-        inicio,
-        fim,
+        inicio: format(startOfMonth(prevMonth), "yyyy-MM-dd"),
+        fim: format(endOfMonth(prevMonth), "yyyy-MM-dd"),
       });
     },
-    enabled: !!oficinaAtual,
-    staleTime: 60_000,
+    enabled: !!oficinaAtual?.id && !FINANCEIRO_V2_DASHBOARD_ENABLED,
+    staleTime: 60000,
   });
 
-  // ── Dados Históricos (Breakdown 6 meses) ───────────────────
-  // Para manter o gráfico funcionando, buscamos os últimos 6 meses.
-  // Idealmente, a RPC deveria retornar isso em uma única chamada, mas por agora chamamos getUnifiedMetrics para cada mês para garantir a fonte da verdade.
-  const { data: chartData = [], isLoading: chartLoading, error: chartError } = useQuery({
-    queryKey: ["financeiro-unificado-chart", oficinaAtual?.id],
+  // 3. Rankings (Top Serviços e Clientes) - Usando RPC unificada
+  const { data: rankings, isLoading: rankingsLoading } = useQuery({
+    queryKey: ["financeiro-rankings-atual", oficinaAtual?.id],
     queryFn: async () => {
-      if (!oficinaAtual) return [];
-      const data = [];
-      for (let i = 5; i >= 0; i--) {
-        const date = subMonths(new Date(), i);
-        const inicio = format(startOfMonth(date), "yyyy-MM-dd");
-        const fim = format(endOfMonth(date), "yyyy-MM-dd");
-        const m = await getUnifiedMetrics({ oficinaId: oficinaAtual.id, inicio, fim });
-        data.push({
-          mes: format(date, "MMM"),
-          faturamento: m.faturamento.liquido,
-          lucro: m.operacional.lucro_operacional,
-        });
-      }
-      return data;
+      if (!oficinaAtual?.id) return null;
+      return await getUnifiedRankings({
+        oficinaId: oficinaAtual.id,
+        inicio: format(startOfMonth(new Date()), "yyyy-MM-dd"),
+        fim: format(endOfMonth(new Date()), "yyyy-MM-dd"),
+      });
     },
-    enabled: !!oficinaAtual,
-    staleTime: 60_000,
+    enabled: !!oficinaAtual?.id,
+    staleTime: 60000,
   });
 
-  // ── Stats (non-financial queries) ─────────────────────────────
-  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
-    queryKey: ["dashboard", "stats", oficinaAtual?.id],
+  // 4. Séries Temporais (Gráfico 6 meses) - Usando RPC unificada
+  const { data: series, isLoading: seriesLoading } = useQuery({
+    queryKey: ["financeiro-series-6meses", oficinaAtual?.id],
     queryFn: async () => {
-      if (!oficinaAtual) return null;
+      if (!oficinaAtual?.id) return null;
+      const seisMesesAtras = subMonths(new Date(), 5);
+      return await getUnifiedSeries({
+        oficinaId: oficinaAtual.id,
+        inicio: format(startOfMonth(seisMesesAtras), "yyyy-MM-dd"),
+        fim: format(endOfMonth(new Date()), "yyyy-MM-dd"),
+      });
+    },
+    enabled: !!oficinaAtual?.id,
+    staleTime: 60000,
+  });
 
+  // 5. Stats Operacionais (não financeiros)
+  const { data: operationalStats, isLoading: operationalLoading } = useQuery({
+    queryKey: ["dashboard-operacional", oficinaAtual?.id],
+    queryFn: async () => {
+      if (!oficinaAtual?.id) return null;
       const hoje = format(new Date(), "yyyy-MM-dd");
       const inicioMes = format(startOfMonth(new Date()), "yyyy-MM-dd");
       const prevMonth = subMonths(new Date(), 1);
@@ -150,19 +172,19 @@ export function useDashboard() {
         novosClientesMes: novosClientesMesRes.count || 0,
         servicosAtrasados: servicosAtrasadosRes.count || 0,
         estoqueBaixo: estoqueRes.data?.filter((item) => item.quantidade <= item.alerta_minimo).length || 0,
-        servicosAtual: servicosAtualRes.count || 0,
-        servicosPrev: servicosPrevRes.count || 0,
-        clientesPrev: clientesPrevRes.count || 0,
+        servicosAtualCount: servicosAtualRes.count || 0,
+        servicosPrevCount: servicosPrevRes.count || 0,
+        clientesPrevCount: clientesPrevRes.count || 0,
       };
     },
-    enabled: !!oficinaAtual,
+    enabled: !!oficinaAtual?.id,
   });
 
-  // ── Recent services ───────────────────────────────────────────
+  // 6. Recent services (UI only)
   const { data: recentServices = [], isLoading: recentLoading } = useQuery({
-    queryKey: ["dashboard", "recent", oficinaAtual?.id],
+    queryKey: ["dashboard-recentes", oficinaAtual?.id],
     queryFn: async () => {
-      if (!oficinaAtual) return [];
+      if (!oficinaAtual?.id) return [];
       const { data, error } = await supabase
         .from("ordens_servico")
         .select(`*, cliente:clientes(id, nome), veiculo:veiculos(id, modelo, placa)`)
@@ -172,133 +194,159 @@ export function useDashboard() {
       if (error) throw error;
       return data;
     },
-    enabled: !!oficinaAtual,
+    enabled: !!oficinaAtual?.id,
   });
 
-  // ── Top serviços (mês atual) ──────────────────────────────────
-  const { data: topServices = [] } = useQuery({
-    queryKey: ["dashboard", "topServices", oficinaAtual?.id],
-    queryFn: async (): Promise<TopService[]> => {
-      if (!oficinaAtual) return [];
-      const inicioMes = format(startOfMonth(new Date()), "yyyy-MM-dd");
-      const fimMes = format(endOfMonth(new Date()), "yyyy-MM-dd");
+  // Mapeamento Final para UnifiedDashboardMetrics - SELEÇÃO POR FEATURE FLAG
+  const unifiedMetrics: UnifiedDashboardMetrics | null = (() => {
+    if (FINANCEIRO_V2_DASHBOARD_ENABLED) {
+      if (!metricsV2 || !operationalStats) return null;
+      return {
+        faturamentoMes: metricsV2.faturamentoMes,
+        lucroOperacional: metricsV2.lucroOperacional,
+        cmvTotal: metricsV2.cmvTotal,
+        perdasOperacionais: 0,
+        prejuizosMes: 0,
+        caixa: metricsV2.caixa,
+        entradasPagas: metricsV2.entradasPagas,
+        saidasPagas: metricsV2.saidasPagas,
+        saldoAReceber: metricsV2.saldoAReceber,
+        clientesMes: metricsV2.clientesMes,
+        totalClientes: operationalStats.totalClientes,
+        servicosHoje: operationalStats.servicosHoje,
+        servicosFinalizadosHoje: operationalStats.servicosFinalizadosHoje,
+        servicosAtrasados: operationalStats.servicosAtrasados,
+        estoqueBaixo: operationalStats.estoqueBaixo,
+        comparativoMensal: {
+          faturamentoAtual: metricsV2.faturamentoMes,
+          faturamentoAnterior: metricsV2Loading ? 0 : (dashboardV2Hook.history[dashboardV2Hook.history.length - 2]?.competencia.faturamento_liquido || 0),
+          servicosAtual: metricsV2.servicosFinalizados,
+          servicosAnterior: metricsV2Loading ? 0 : (dashboardV2Hook.history[dashboardV2Hook.history.length - 2]?.contadores.servicos_finalizados || 0),
+          clientesAtual: metricsV2.clientesMes,
+          clientesAnterior: 0, // V2 history não conta clientes por mês para performance
+        },
+        graficoMensal: dashboardV2Hook.history.map(s => ({
+          mes: s.mes,
+          faturamentoLiquido: s.competencia.faturamento_liquido,
+          lucroOperacional: s.resultado.lucro_operacional
+        })) || [],
+      };
+    }
 
-      const { data, error } = await supabase
-        .from("ordens_servico")
-        .select("tipo_servico")
-        .eq("oficina_id", oficinaAtual.id)
-        .gte("data_servico", inicioMes)
-        .lte("data_servico", fimMes);
-      if (error) throw error;
-      if (!data) return [];
+    // Fluxo Legado
+    if (!metrics || !operationalStats) return null;
+    return {
+      faturamentoMes: metrics.faturamento.liquido,
+      lucroOperacional: metrics.operacional.lucro_operacional,
+      cmvTotal: metrics.operacional.custo_pecas,
+      perdasOperacionais: (metrics as any).perdas_operacionais?.total ?? 0,
+      prejuizosMes: (metrics as any).perdas_operacionais?.total ?? 0,
+      caixa: metrics.caixa.lucro_caixa_oficina_periodo,
+      entradasPagas: metrics.caixa.entradas_oficina_periodo,
+      saidasPagas: metrics.caixa.saidas_oficina_periodo,
+      saldoAReceber: metrics.caixa.saldo_a_receber_competencia,
+      clientesMes: operationalStats.novosClientesMes,
+      totalClientes: operationalStats.totalClientes,
+      servicosHoje: operationalStats.servicosHoje,
+      servicosFinalizadosHoje: operationalStats.servicosFinalizadosHoje,
+      servicosAtrasados: operationalStats.servicosAtrasados,
+      estoqueBaixo: operationalStats.estoqueBaixo,
+      comparativoMensal: {
+        faturamentoAtual: metrics.faturamento.liquido,
+        faturamentoAnterior: metricsPrev?.faturamento.liquido || 0,
+        servicosAtual: operationalStats.servicosAtualCount,
+        servicosAnterior: operationalStats.servicosPrevCount,
+        clientesAtual: operationalStats.novosClientesMes,
+        clientesAnterior: operationalStats.clientesPrevCount,
+      },
+      graficoMensal: series?.map(s => ({
+        mes: s.label,
+        faturamentoLiquido: s.faturamento_liquido,
+        lucroOperacional: s.lucro_operacional
+      })) || [],
+    };
+  })();
 
-      const grouped = data.reduce((acc, s) => {
-        const tipo = s.tipo_servico || "Outros";
-        acc[tipo] = (acc[tipo] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
+  // Adaptadores para componentes legados
+  const statsAdapter = (() => {
+    if (FINANCEIRO_V2_DASHBOARD_ENABLED && unifiedMetrics && metricsV2) {
+      return {
+        ...unifiedMetrics,
+        totalClientes: metricsV2.clientesMes,
+        novosClientesMes: metricsV2.clientesMes,
+        recebimentosMes: metricsV2.entradasPagas,
+        lucroMes: metricsV2.lucroOperacional,
+        pecasMes: metricsV2.cmvTotal,
+        servicosMaoObraMes: 0, // V2 não separa MAO por enquanto
+        custoPecasMes: metricsV2.cmvTotal,
+        descontosMes: 0,
+        alertaItensSemCusto: false,
+        alertaLucroInflado: false,
+        modo: (metricsV2 as any).modo,
+        registrosIgnoradosCount: (metricsV2 as any).auditoria?.registros_ignorados_por_manifesto?.length || 0,
+        lucroCaixaMes: metricsV2.caixa,
+        lucroOperacionalMes: metricsV2.lucroOperacional,
+      };
+    }
 
-      return Object.entries(grouped)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 5);
-    },
-    enabled: !!oficinaAtual,
-  });
+    if (!FINANCEIRO_V2_DASHBOARD_ENABLED && unifiedMetrics && metrics) {
+      return {
+        ...unifiedMetrics,
+        totalClientes: operationalStats?.totalClientes || 0,
+        novosClientesMes: operationalStats?.novosClientesMes || 0,
+        recebimentosMes: metrics.caixa.recebido_vinculado_competencia || 0,
+        lucroMes: metrics.operacional.lucro_operacional || 0,
+        pecasMes: metrics.faturamento.pecas || 0,
+        servicosMaoObraMes: metrics.faturamento.servicos || 0,
+        custoPecasMes: metrics.operacional.custo_pecas || 0,
+        descontosMes: metrics.faturamento.descontos || 0,
+        alertaItensSemCusto: (metrics as any).auditoria?.total_itens_livres_sem_custo > 0,
+        alertaLucroInflado: (metrics as any).auditoria?.alerta_lucro_inflado,
+        lucroCaixaMes: metrics.caixa.lucro_caixa_oficina_periodo || 0,
+        lucroOperacionalMes: metrics.operacional.lucro_operacional || 0,
+      };
+    }
 
-  // ── Top clientes (mês atual) ─────────────────────────────────
-  const { data: topClients = [] } = useQuery({
-    queryKey: ["dashboard", "topClients", oficinaAtual?.id],
-    queryFn: async (): Promise<TopClient[]> => {
-      if (!oficinaAtual) return [];
-      const inicioMes = format(startOfMonth(new Date()), "yyyy-MM-dd");
-      const fimMes = format(endOfMonth(new Date()), "yyyy-MM-dd");
+    return null;
+  })();
 
-      const { data, error } = await supabase
-        .from("ordens_servico")
-        .select(`cliente_id, valor_servico, desconto, custo_servico, cliente:clientes(id, nome), itens_os(quantidade, valor_unitario, custo_unitario, valor_total)`)
-        .eq("oficina_id", oficinaAtual.id)
-        .eq("status", "finalizado")
-        .gte("data_conclusao", inicioMes)
-        .lte("data_conclusao", fimMes);
-      
-      if (error) throw error;
-      if (!data) return [];
+  const topServices: TopService[] = rankings?.servicos.map(s => ({
+    name: s.tipo_servico,
+    value: s.total_os
+  })) || [];
 
-      const grouped = data.reduce((acc, s) => {
-        const clienteId = (s as any).cliente_id;
-        const clienteNome = (s as any).cliente?.nome || "Cliente";
-        const itens = (s as any).itens_os || [];
-        
-        const faturamentoBruto = Number((s as any).valor_servico || 0);
-        const faturamentoLiquido = faturamentoBruto - Number((s as any).desconto || 0);
-        const custoItens = itens.reduce((sum: number, i: any) => sum + (Number(i.custo_unitario || 0) * Number(i.quantidade || 1)), 0);
-        const lucroOperacional = faturamentoLiquido - custoItens;
-
-        if (!acc[clienteId]) {
-          acc[clienteId] = { id: clienteId, nome: clienteNome, totalServicos: 0, valorTotal: 0, lucroTotal: 0 };
-        }
-        acc[clienteId].totalServicos += 1;
-        acc[clienteId].valorTotal += faturamentoLiquido;
-        acc[clienteId].lucroTotal += lucroOperacional;
-        return acc;
-      }, {} as Record<string, TopClient>);
-
-      return Object.values(grouped)
-        .sort((a, b) => b.lucroTotal - a.lucroTotal)
-        .slice(0, 5);
-    },
-    enabled: !!oficinaAtual,
-  });
-
-  const monthlyComparison = metrics && metricsPrev && stats ? {
-    currentMonth: {
-      servicos: stats.servicosAtual,
-      faturamento: metrics.faturamento.liquido,
-      clientes: stats.novosClientesMes,
-    },
-    previousMonth: {
-      servicos: stats.servicosPrev,
-      faturamento: metricsPrev.faturamento.liquido,
-      clientes: stats.clientesPrev,
-    },
-  } : null;
+  const topClients: TopClient[] = rankings?.clientes.map(c => ({
+    id: c.id,
+    nome: c.nome,
+    totalServicos: c.total_os,
+    valorTotal: c.faturamento_total,
+    lucroTotal: c.lucro_total
+  })) || [];
 
   return {
-    stats: {
-      servicosHoje: stats?.servicosHoje ?? 0,
-      servicosFinalizadosHoje: stats?.servicosFinalizadosHoje ?? 0,
-      totalClientes: stats?.totalClientes ?? 0,
-      novosClientesMes: stats?.novosClientesMes ?? 0,
-      servicosAtrasados: stats?.servicosAtrasados ?? 0,
-      estoqueBaixo: stats?.estoqueBaixo ?? 0,
-      
-      // MÉTRICAS UNIFICADAS (FASE 2)
-      faturamentoMes: metrics?.faturamento.liquido ?? 0,
-      recebimentosMes: metrics?.caixa.recebido_vinculado_competencia ?? 0,
-      lucroCaixaMes: metrics?.caixa.lucro_caixa_oficina_periodo ?? 0,
-      lucroOperacionalMes: metrics?.operacional.lucro_operacional ?? 0,
-      pecasMes: metrics?.categorias.pecas.liquido ?? 0,
-      servicosMaoObraMes: metrics?.categorias.servicos.liquido ?? 0,
-      custoPecasMes: metrics?.operacional.custo_pecas ?? 0,
-      descontosMes: metrics?.faturamento.descontos ?? 0,
-      alertaItensSemCusto: metrics?.auditoria.total_itens_livres_sem_custo > 0,
-      alertaLucroInflado: metrics?.auditoria.alerta_lucro_inflado ?? false,
-      
-      lucroMes: metrics?.operacional.lucro_operacional ?? 0,
-      prejuizosMes: metrics?.caixa.saidas_oficina_periodo ?? 0,
-    },
-    chartData,
-    monthlyComparison,
+    metrics: unifiedMetrics,
+    stats: statsAdapter, // Retrocompatibilidade
+    chartData: unifiedMetrics?.graficoMensal || [],
+    monthlyComparison: unifiedMetrics?.comparativoMensal ? {
+      currentMonth: {
+        servicos: unifiedMetrics.comparativoMensal.servicosAtual,
+        faturamento: unifiedMetrics.comparativoMensal.faturamentoAtual,
+        clientes: unifiedMetrics.comparativoMensal.clientesAtual,
+      },
+      previousMonth: {
+        servicos: unifiedMetrics.comparativoMensal.servicosAnterior,
+        faturamento: unifiedMetrics.comparativoMensal.faturamentoAnterior,
+        clientes: unifiedMetrics.comparativoMensal.clientesAnterior,
+      },
+    } : null,
     recentServices,
     topServices,
     topClients,
-    error: metricsError || metricsPrevError || chartError || statsError,
-    isLoading: statsLoading || recentLoading || metricsLoading || metricsPrevLoading || chartLoading,
+    isLoading: metricsLoading || metricsPrevLoading || rankingsLoading || seriesLoading || operationalLoading || recentLoading || (FINANCEIRO_V2_DASHBOARD_ENABLED && metricsV2Loading),
+    error: metricsError || (FINANCEIRO_V2_DASHBOARD_ENABLED ? (metricsV2Error as any) : null),
+    auditoriaLimpa: (metricsV2 as any)?.modo === "preview_limpeza_logica" ? {
+      isModoLimpo: true,
+      registrosIgnorados: (metricsV2 as any).auditoria?.registros_ignorados_por_manifesto || []
+    } : { isModoLimpo: false, registrosIgnorados: [] }
   };
-}
-
-// Helper para capturar erros específicos (opcional)
-function useDashboardError(queries: any[]) {
-  return queries.find(q => q.isError)?.error;
 }

@@ -519,7 +519,7 @@ export function LandingSections({
 
             <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-500">
               <a
-                href="/politica-privacidade"
+                href="/privacidade"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-slate-300 transition-colors underline underline-offset-2"
@@ -528,7 +528,7 @@ export function LandingSections({
               </a>
               <span className="text-slate-700">·</span>
               <a
-                href="/termos-uso"
+                href="/termos"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-slate-300 transition-colors underline underline-offset-2"
