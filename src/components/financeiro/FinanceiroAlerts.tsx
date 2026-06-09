@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
-import { AlertTriangle, TrendingDown, Clock, AlertCircle, Shield } from "lucide-react";
-import { FEATURE_FLAGS_V2 } from "@/config/featureFlagsV2";
+import { AlertTriangle, TrendingDown, Clock, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -12,8 +11,6 @@ interface FinanceiroAlertsProps {
   totalAReceber: number;
   percentualMudanca: number;
   alertaLucroInflado?: boolean;
-  modo?: string;
-  registrosIgnoradosCount?: number;
 }
 
 export function FinanceiroAlerts({
@@ -24,19 +21,8 @@ export function FinanceiroAlerts({
   totalAReceber,
   percentualMudanca,
   alertaLucroInflado,
-  modo,
-  registrosIgnoradosCount,
 }: FinanceiroAlertsProps) {
-  const alerts: { icon: React.ElementType; message: string; type: "warning" | "danger" | "info" | "success" }[] = [];
-
-  // Alerta Modo V2 Limpo (Portão 8C)
-  if (FEATURE_FLAGS_V2.FINANCEIRO_V2_IGNORE_TEST_MANIFEST_ENABLED && modo === "preview_limpeza_logica") {
-    alerts.push({
-      icon: Shield,
-      message: `Modo V2 limpo lógico ativo: ${registrosIgnoradosCount || 0} registros de teste ignorados por manifesto, sem alteração física no banco.`,
-      type: "info",
-    });
-  }
+  const alerts: { icon: React.ElementType; message: string; type: "warning" | "danger" | "info" }[] = [];
 
   // Alerta de Lucro Inflado (Backfill pendente)
   if (alertaLucroInflado) {

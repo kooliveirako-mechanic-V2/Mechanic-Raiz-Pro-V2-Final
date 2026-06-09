@@ -4,13 +4,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Download, FileText, Loader2, AlertTriangle, Shield } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { useFinanceiroPreFiscalUnificado } from "@/hooks/useFinanceiroPreFiscalUnificado";
-import { FEATURE_FLAGS_V2 } from "@/config/featureFlagsV2";
 
 interface FinanceiroPreFiscalExportProps {
   dateRange: { start: string; end: string };
@@ -20,7 +21,7 @@ export function FinanceiroPreFiscalExport({ dateRange }: FinanceiroPreFiscalExpo
   const [exporting, setExporting] = useState(false);
   const { data: preFiscal, isLoading } = useFinanceiroPreFiscalUnificado(dateRange.start, dateRange.end);
 
-  const formatCurrencyValue = (value: number) => {
+  const formatCurrency = (value: number) => {
     return value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
@@ -43,11 +44,11 @@ export function FinanceiroPreFiscalExport({ dateRange }: FinanceiroPreFiscalExpo
 
       if (tipo === "contador") {
         // Alerta de Histórico no CSV
-        if (preFiscal.alertas.historicoComRessalva) {
-          csvContent += `ALERTA: Este relatório possui dados históricos com custo pendente de normalização estimada. O lucro operacional histórico pode estar inflado em aproximadamente R$ ${formatCurrencyValue(preFiscal.alertas.itensSemCusto)} nos períodos afetados.\n\n`;
+        if (preFiscal.ressalvas.tem_ressalva) {
+          csvContent += `ALERTA: Este relatório possui dados históricos com custo pendente de normalização estimada. O lucro operacional histórico pode estar inflado em aproximadamente R$ ${formatCurrency(preFiscal.ressalvas.impacto_estimado)} nos períodos afetados.\n\n`;
         }
 
-        csvContent += "Data Competência,Data Pagamento,Tipo,Categoria,Descrição,Valor Bruto,Desconto,Valor Líquido,Status,Documento,Ressalva Histórica\n";
+        csvContent += "Data Competência,Data Pagamento,Tipo,Categoria,Descrição,Valor Bruto,Desconto,Valor Líquido,Status,Documento,Obs. Contador,Dado Estimado,Ressalva Histórica\n";
         
         preFiscal.analitico.forEach((r) => {
           const row = [
@@ -56,12 +57,14 @@ export function FinanceiroPreFiscalExport({ dateRange }: FinanceiroPreFiscalExpo
             r.tipo === "entrada" ? "Receita" : "Despesa",
             escapeCSV(r.categoria),
             escapeCSV(r.descricao),
-            formatCurrencyValue(Number(r.valor_bruto)),
-            formatCurrencyValue(Number(r.desconto)),
-            formatCurrencyValue(Number(r.valor_liquido)),
+            formatCurrency(Number(r.valor_bruto)),
+            formatCurrency(Number(r.desconto)),
+            formatCurrency(Number(r.valor_liquido)),
             escapeCSV(r.status),
             escapeCSV(r.numero_documento),
-            preFiscal.alertas.historicoComRessalva ? "Sim" : "Não"
+            escapeCSV(r.observacoes_contador),
+            r.is_estimado ? "Sim" : "Não",
+            preFiscal.ressalvas.tem_ressalva ? "Sim" : "Não"
           ];
           csvContent += row.join(",") + "\n";
         });
@@ -69,20 +72,19 @@ export function FinanceiroPreFiscalExport({ dateRange }: FinanceiroPreFiscalExpo
         // Totais Oficiais da RPC (Fonte Única)
         csvContent += "\n";
         csvContent += `,,RESUMO CAIXA (PAGOS)\n`;
-        csvContent += `,,Entradas,,${formatCurrencyValue(preFiscal.caixa.entradasPagas)}\n`;
-        csvContent += `,,Saídas,,${formatCurrencyValue(preFiscal.caixa.saidasPagas)}\n`;
-        csvContent += `,,Lucro Caixa,,${formatCurrencyValue(preFiscal.caixa.lucroCaixa)}\n\n`;
+        csvContent += `,,Entradas,,${formatCurrency(preFiscal.metrics.caixa.entradas)}\n`;
+        csvContent += `,,Saídas,,${formatCurrency(preFiscal.metrics.caixa.saidas)}\n`;
+        csvContent += `,,Lucro Caixa,,${formatCurrency(preFiscal.metrics.caixa.lucro_caixa)}\n\n`;
 
         csvContent += `,,RESUMO COMPETÊNCIA (FINALIZADOS)\n`;
-        csvContent += `,,Faturamento Bruto,,${formatCurrencyValue(preFiscal.competencia.faturamentoBruto)}\n`;
-        csvContent += `,,Descontos,,${formatCurrencyValue(preFiscal.competencia.descontos)}\n`;
-        csvContent += `,,Faturamento Líquido,,${formatCurrencyValue(preFiscal.competencia.faturamentoLiquido)}\n`;
-        csvContent += `,,Peças Bruto,,${formatCurrencyValue(preFiscal.competencia.pecasBruto)}\n`;
-        csvContent += `,,Serviços Bruto,,${formatCurrencyValue(preFiscal.competencia.servicosBruto)}\n`;
-        csvContent += `,,Venda Balcão Bruto,,${formatCurrencyValue(preFiscal.competencia.vendaBalcaoBruto)}\n`;
-        csvContent += `,,CMV Total,,${formatCurrencyValue(preFiscal.custos.cmvTotal)}\n`;
-        csvContent += `,,Lucro Operacional,,${formatCurrencyValue(preFiscal.resultado.lucroOperacional)}\n`;
-        csvContent += `,,Saldo a Receber,,${formatCurrencyValue(preFiscal.competencia.saldoAReceber)}\n`;
+        csvContent += `,,Faturamento Bruto,,${formatCurrency(preFiscal.metrics.competencia.faturamento_bruto)}\n`;
+        csvContent += `,,Descontos,,${formatCurrency(preFiscal.metrics.competencia.descontos)}\n`;
+        csvContent += `,,Faturamento Líquido,,${formatCurrency(preFiscal.metrics.competencia.faturamento_liquido)}\n`;
+        csvContent += `,,Peças Líquido,,${formatCurrency(preFiscal.metrics.competencia.pecas_liquido)}\n`;
+        csvContent += `,,Serviços Líquido,,${formatCurrency(preFiscal.metrics.competencia.servicos_liquido)}\n`;
+        csvContent += `,,CMV,,${formatCurrency(preFiscal.metrics.competencia.cmv)}\n`;
+        csvContent += `,,Lucro Operacional,,${formatCurrency(preFiscal.metrics.competencia.lucro_operacional)}\n`;
+        csvContent += `,,Saldo a Receber,,${formatCurrency(preFiscal.metrics.competencia.saldo_a_receber)}\n`;
       }
 
       if (dateRange) {
@@ -110,24 +112,12 @@ export function FinanceiroPreFiscalExport({ dateRange }: FinanceiroPreFiscalExpo
 
   return (
     <div className="flex flex-col gap-2">
-      {preFiscal?.alertas.historicoComRessalva && (
+      {preFiscal?.ressalvas.tem_ressalva && (
         <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-xs mb-2">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <p>
-            Este relatório possui dados históricos com custo pendente. O lucro operacional pode estar inflado em ~R$ {formatCurrencyValue(preFiscal.alertas.itensSemCusto)}.
+            Este relatório possui dados históricos com custo pendente. O lucro operacional pode estar inflado em ~R$ {formatCurrency(preFiscal.ressalvas.impacto_estimado)}.
           </p>
-        </div>
-      )}
-
-      {FEATURE_FLAGS_V2.FINANCEIRO_V2_IGNORE_TEST_MANIFEST_ENABLED && (preFiscal as any)?.modo === "preview_limpeza_logica" && (
-        <div className="flex items-start gap-2 p-3 bg-info/10 border border-info/30 rounded-md text-info text-xs mb-2">
-          <Shield className="w-4 h-4 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-bold">Modo V2 Limpo Ativo</p>
-            <p>
-              Registros de teste ignorados por manifesto ({ (preFiscal as any).auditoria?.registros_ignorados_por_manifesto?.length || 0} itens).
-            </p>
-          </div>
         </div>
       )}
       

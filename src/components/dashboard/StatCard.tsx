@@ -1,7 +1,6 @@
-import { LucideIcon, Shield } from "lucide-react";
+import { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type StatVariant = "default" | "primary" | "accent" | "success" | "warning" | "destructive";
 
@@ -17,7 +16,6 @@ interface StatCardProps {
   };
   className?: string;
   delay?: number;
-  isModoLimpo?: boolean;
 }
 
 const variantConfig: Record<StatVariant, {
@@ -41,7 +39,6 @@ export function StatCard({
   trend,
   className,
   delay = 0,
-  isModoLimpo = false,
 }: StatCardProps) {
   const config = variantConfig[variant];
 
@@ -58,21 +55,7 @@ export function StatCard({
       )}
     >
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">{title}</p>
-          {isModoLimpo && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Shield className="w-3 h-3 text-info shrink-0 cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-[10px]">Modo Limpo Ativo: Registros de teste ignorados por manifesto.</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{title}</p>
         <div className={cn(
           "w-8 h-8 rounded-lg flex items-center justify-center",
           config.iconBg

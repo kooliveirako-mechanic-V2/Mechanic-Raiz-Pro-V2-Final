@@ -46,12 +46,6 @@ import { FinanceiroPreFiscalExport } from "@/components/financeiro/FinanceiroPre
 import { VendaBalcaoDetalheModal } from "@/components/vendas/VendaBalcaoDetalheModal";
 import { DraftResumeBanner } from "@/components/DraftResumeBanner";
 import { useOficina } from "@/contexts/OficinaContext";
-import { useMobileV2 } from "@/hooks/useMobileV2";
-import { FEATURE_FLAGS_V2 } from "@/config/featureFlagsV2";
-import { Shield } from "lucide-react";
-
-// FEATURE FLAG: FINANCEIRO_V2_MOBILE_ENABLED
-export const FINANCEIRO_V2_MOBILE_ENABLED = FEATURE_FLAGS_V2.MOBILE_V2_ENABLED;
 
 export function MobileFinanceiro() {
   const [activeTab, setActiveTab] = useState("all");
@@ -59,25 +53,8 @@ export function MobileFinanceiro() {
   const [financeiroModalOpen, setFinanceiroModalOpen] = useState(false);
   const [vendaDetalheId, setVendaDetalheId] = useState<string | null>(null);
   const [tipoModal, setTipoModal] = useState<"entrada" | "saida">("entrada");
-  const { 
-    registros, 
-    totalEntradas, 
-    totalSaidas, 
-    lucroTotal, 
-    faturamentoMes,
-    lucroOperacional,
-    cmvTotal,
-    perdasOperacionais,
-    saldoAReceber,
-    isLoading, 
-    deleteRegistro 
-  } = useFinanceiro();
+  const { registros, totalEntradas, totalSaidas, lucroTotal, isLoading, deleteRegistro } = useFinanceiro();
   const { oficinaAtual } = useOficina();
-
-  // Hook V2 (condicional)
-  const { metrics: metricsV2, history: historyV2, isLoading: isLoadingV2 } = useMobileV2();
-
-  const isV2 = FINANCEIRO_V2_MOBILE_ENABLED;
 
   const handleOpenModal = (tipo: "entrada" | "saida") => {
     setTipoModal(tipo);
@@ -130,39 +107,13 @@ export function MobileFinanceiro() {
 
   // CAUSA RAIZ: Usar helper centralizado em vez de formatação local sem decimais
 
-  if (isLoading || (isV2 && isLoadingV2)) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-accent" />
       </div>
     );
   }
-
-  // Mapeamento de métricas conforme flag
-  const displayMetrics = isV2 && metricsV2 ? {
-    faturamentoMes: metricsV2.competencia.faturamento_liquido,
-    lucroOperacional: metricsV2.resultado.lucro_operacional,
-    cmvTotal: metricsV2.custos.cmv_total,
-    saldoAReceber: metricsV2.competencia.saldo_a_receber_competencia,
-    totalEntradas: metricsV2.caixa.entradas_pagas_no_periodo,
-    totalSaidas: metricsV2.caixa.saidas_pagas_no_periodo,
-    lucroTotal: metricsV2.caixa.saldo_caixa_periodo,
-    recebidoVinculado: metricsV2.competencia.recebido_vinculado_competencia,
-  } : {
-    faturamentoMes,
-    lucroOperacional,
-    cmvTotal,
-    saldoAReceber,
-    totalEntradas,
-    totalSaidas,
-    lucroTotal,
-    recebidoVinculado: 0 // Legado não tem esse campo
-  };
-
-  const displayChartData = isV2 ? historyV2.map(s => ({
-    month: s.mes,
-    receita: s.caixa.entradas_pagas_no_periodo
-  })) : chartData;
 
   return (
     <div className="space-y-4 pb-24 w-full max-w-full overflow-x-hidden">
@@ -187,82 +138,28 @@ export function MobileFinanceiro() {
         </div>
       </div>
 
-      {/* Resumo Financeiro Oficial (V2 ou Legado) */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-card rounded-xl border border-border p-3">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Faturamento</p>
-          <p className="text-base font-bold text-foreground">{formatCurrency(displayMetrics.faturamentoMes)}</p>
-          <p className="text-[10px] text-muted-foreground mt-1">Competência (OS+Vendas)</p>
+      {/* Resumo — Linha horizontal simples */}
+      <div className="flex items-center gap-3 bg-card rounded-xl border border-border p-3">
+        <div className="flex-1 text-center min-w-0">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Receita</p>
+          <p className="text-sm font-bold text-success truncate">{formatCurrency(totalEntradas)}</p>
         </div>
-        <div className="bg-card rounded-xl border border-border p-3">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Lucro Operacional</p>
+        <div className="w-px h-8 bg-border flex-shrink-0" />
+        <div className="flex-1 text-center min-w-0">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Despesa</p>
+          <p className="text-sm font-bold text-destructive truncate">{formatCurrency(totalSaidas)}</p>
+        </div>
+        <div className="w-px h-8 bg-border flex-shrink-0" />
+        <div className="flex-1 text-center min-w-0">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Lucro</p>
           <p className={cn(
-            "text-base font-bold",
-            displayMetrics.lucroOperacional >= 0 ? "text-success" : "text-destructive"
+            "text-sm font-bold truncate",
+            lucroTotal >= 0 ? "text-success" : "text-destructive"
           )}>
-            {formatCurrency(displayMetrics.lucroOperacional)}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-1">Margem Real</p>
-        </div>
-        <div className="bg-card rounded-xl border border-border p-3">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">CMV (Custo)</p>
-          <p className="text-base font-bold text-destructive">{formatCurrency(displayMetrics.cmvTotal)}</p>
-          <p className="text-[10px] text-muted-foreground mt-1">Total em peças</p>
-        </div>
-        <div className="bg-card rounded-xl border border-border p-3">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Saldo a Receber</p>
-          <p className="text-base font-bold text-accent">{formatCurrency(displayMetrics.saldoAReceber)}</p>
-          <p className="text-[10px] text-muted-foreground mt-1">
-            {isV2 ? "Da Competência" : "Pendências"}
+            {lucroTotal >= 0 ? "+" : ""}{formatCurrency(lucroTotal)}
           </p>
         </div>
       </div>
-
-      {isV2 && (
-        <div className="space-y-3">
-          <div className="bg-primary/5 border border-primary/10 rounded-xl p-3">
-             <p className="text-[10px] text-primary uppercase font-bold tracking-wide">Recebido Vinc. Competência</p>
-             <p className="text-sm font-bold text-primary">{formatCurrency(displayMetrics.recebidoVinculado)}</p>
-          </div>
-
-          {FEATURE_FLAGS_V2.FINANCEIRO_V2_IGNORE_TEST_MANIFEST_ENABLED && metricsV2 && (metricsV2 as any).modo === "preview_limpeza_logica" && (
-            <div className="bg-info/10 border border-info/30 rounded-xl p-3 flex items-start gap-3">
-              <Shield className="w-5 h-5 text-info shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-[10px] text-info uppercase font-bold tracking-wide">Modo V2 Limpo Ativo</p>
-                <p className="text-[11px] text-info/90 leading-tight">
-                  Registros de teste ignorados por manifesto ({(metricsV2.auditoria as any).registros_ignorados_por_manifesto?.length || 0} itens). 
-                  Nenhum dado real foi alterado fisicamente.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Fluxo de Caixa do Período */}
-      <div className="flex items-center gap-3 bg-muted/30 rounded-xl border border-border p-3">
-        <div className="flex-1 text-center min-w-0">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Entradas</p>
-          <p className="text-xs font-bold text-success truncate">{formatCurrency(displayMetrics.totalEntradas)}</p>
-        </div>
-        <div className="w-px h-6 bg-border flex-shrink-0" />
-        <div className="flex-1 text-center min-w-0">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Saídas</p>
-          <p className="text-xs font-bold text-destructive truncate">{formatCurrency(displayMetrics.totalSaidas)}</p>
-        </div>
-        <div className="w-px h-6 bg-border flex-shrink-0" />
-        <div className="flex-1 text-center min-w-0">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Saldo Caixa</p>
-          <p className={cn(
-            "text-xs font-bold truncate",
-            displayMetrics.lucroTotal >= 0 ? "text-success" : "text-destructive"
-          )}>
-            {formatCurrency(displayMetrics.lucroTotal)}
-          </p>
-        </div>
-      </div>
-
 
       {/* Botão principal único */}
       <Button 
@@ -298,7 +195,7 @@ export function MobileFinanceiro() {
           <h3 className="text-sm font-semibold text-foreground mb-2">Receita Mensal</h3>
           <div className="h-32">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={displayChartData}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="colorReceitaMobile" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(var(--accent))" stopOpacity={0.3} />

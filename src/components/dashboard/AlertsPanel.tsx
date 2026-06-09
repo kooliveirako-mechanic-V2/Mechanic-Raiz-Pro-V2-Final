@@ -51,10 +51,6 @@ const alertConfig: Record<
     icon: CreditCard,
     label: "Parcela",
   },
-  audit_logic_clean: {
-    icon: Shield,
-    label: "Auditoria",
-  },
 };
 
 const severityStyles: Record<AlertSeverity, { bgColor: string; iconColor: string; borderColor: string }> = {

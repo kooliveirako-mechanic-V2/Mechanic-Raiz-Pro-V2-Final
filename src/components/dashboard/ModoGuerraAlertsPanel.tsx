@@ -7,41 +7,27 @@ import {
   ChevronRight,
   RefreshCw,
   CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  Info,
-  ShieldCheck
+  XCircle
 } from "lucide-react";
-import { FEATURE_FLAGS_V2 } from "@/config/featureFlagsV2";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ModoGuerraAlertCard } from "./ModoGuerraAlertCard";
 import { useModoGuerraAlerts } from "@/hooks/useModoGuerraAlerts";
-import { useModoGuerraV2 } from "@/hooks/useModoGuerraV2";
 import { useNavigate } from "react-router-dom";
 import { formatCurrency } from "@/lib/formatters";
-
-// FEATURE FLAG: FINANCEIRO_V2_MODO_GUERRA_ENABLED
-export const FINANCEIRO_V2_MODO_GUERRA_ENABLED = FEATURE_FLAGS_V2.MODO_GUERRA_V2_ENABLED;
 
 export function ModoGuerraAlertsPanel() {
   const navigate = useNavigate();
   const { 
     alertas, 
     stats, 
-    isLoading: isLoadingAlerts, 
+    isLoading, 
     isInfinity,
     resolverAlerta,
-    ignorarAlerta,
-    refetch 
+    ignorarAlerta 
   } = useModoGuerraAlerts();
-
-  const { data: metricsV2, isLoading: isLoadingV2, auditoriaLimpa } = useModoGuerraV2();
-  
-  const isV2 = FINANCEIRO_V2_MODO_GUERRA_ENABLED;
-  const isLoading = isLoadingAlerts || (isV2 && isLoadingV2);
 
   if (isLoading) {
     return (
@@ -64,12 +50,6 @@ export function ModoGuerraAlertsPanel() {
 
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
-      {isV2 && (
-        <Badge variant="outline" className="w-full rounded-none border-0 border-b border-primary/20 bg-primary/5 text-primary py-2 px-6">
-          <Info className="w-4 h-4 mr-2" /> Painel Modo Guerra V2 Ativo (Leitura)
-        </Badge>
-      )}
-      
       {/* Header - Tom consultivo */}
       <div className="p-6 border-b border-border bg-gradient-to-r from-amber-500/5 to-transparent">
         <div className="flex items-center justify-between">
@@ -90,18 +70,6 @@ export function ModoGuerraAlertsPanel() {
                 Pontos de atenção baseados nos seus dados
               </p>
             </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-primary"
-              onClick={() => refetch()}
-              title="Recarregar análises"
-            >
-              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-            </Button>
           </div>
         </div>
 
@@ -127,56 +95,6 @@ export function ModoGuerraAlertsPanel() {
 
       {/* Oportunidades identificadas */}
       <div className="p-6">
-        {isV2 && metricsV2 && (
-          <div className="mb-6 space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Faturamento Comp.</p>
-                <p className="text-sm font-bold">{formatCurrency(metricsV2.competencia.faturamento_liquido)}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Saldo Rec. Comp.</p>
-                <p className="text-sm font-bold text-accent">{formatCurrency(metricsV2.competencia.saldo_a_receber_competencia)}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Entradas Caixa</p>
-                <p className="text-sm font-bold text-success">{formatCurrency(metricsV2.caixa.entradas_pagas_no_periodo)}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">CMV Total</p>
-                <p className="text-sm font-bold text-destructive">{formatCurrency(metricsV2.custos.cmv_total)}</p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              {metricsV2.auditoria.avisos.map((aviso, i) => (
-                <div key={i} className="flex items-center gap-2 p-3 rounded-lg bg-destructive/5 border border-destructive/10 text-xs text-destructive">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span>{aviso}</span>
-                </div>
-              ))}
-              {metricsV2.auditoria.registros_os.some(os => os.is_teste) && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/10 text-xs text-amber-600">
-                  <Info className="w-4 h-4" />
-                  <span>Existem registros de teste ativos afetando os indicadores. Limpeza pendente.</span>
-                </div>
-              )}
-              {auditoriaLimpa?.isModoLimpo && (
-                <div className="bg-info/10 border border-info/30 rounded-xl p-3 flex items-start gap-3">
-                  <ShieldCheck className="w-5 h-5 text-info shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-info uppercase font-bold tracking-wide">Modo V2 Limpo Ativo</p>
-                    <p className="text-[11px] text-info/90 leading-tight">
-                      Registros de teste ignorados por manifesto ({auditoriaLimpa.registrosIgnorados?.length || 0} itens). 
-                      Cálculos gerenciais ajustados sem alteração física no banco.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {alertas.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
