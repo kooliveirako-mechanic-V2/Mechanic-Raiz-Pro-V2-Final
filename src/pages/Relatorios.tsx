@@ -9,6 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/formatters";
 import { subDays, subMonths, format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { FEATURE_FLAGS_V2 } from "@/config/featureFlagsV2";
+import { Shield } from "lucide-react";
 import {
   BarChart3,
   TrendingUp,
@@ -17,6 +19,7 @@ import {
   ChevronUp,
   Package,
   DollarSign,
+  Info,
 } from "lucide-react";
 import { ExportPDFButton } from "@/components/relatorios/ExportPDFButton";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,6 +35,10 @@ import {
   Legend,
 } from "recharts";
 import { getUnifiedMetrics } from "@/services/financeiroService";
+import { financeiroV2Service } from "@/services/financeiroV2Service";
+
+// FEATURE FLAG: FINANCEIRO_V2_RELATORIOS_ENABLED
+export const FINANCEIRO_V2_RELATORIOS_ENABLED = FEATURE_FLAGS_V2.RELATORIOS_V2_ENABLED;
 
 type PeriodoFilter = "30d" | "3m" | "6m" | "1a";
 
@@ -110,14 +117,13 @@ function ReportSection({
   );
 }
 
-// ─── RELATÓRIO 1: FATURAMENTO (FASE 2) ────────────────────────
+// ─── RELATÓRIO 1: FATURAMENTO (FASE 2C / V2) ────────────────────────
 function RelatorioFaturamento() {
   const { oficinaAtual } = useOficina();
   const [periodo, setPeriodo] = useState<PeriodoFilter>("3m");
   
-  // Consumindo a fonte única mês a mês para o gráfico
   const { data: chartData = [], isLoading } = useQuery({
-    queryKey: ["relatorio-faturamento-unificado", oficinaAtual?.id, periodo],
+    queryKey: ["relatorio-faturamento-unificado", oficinaAtual?.id, periodo, FINANCEIRO_V2_RELATORIOS_ENABLED],
     queryFn: async () => {
       if (!oficinaAtual) return [];
       const data = [];
@@ -128,21 +134,41 @@ function RelatorioFaturamento() {
         const inicio = format(startOfMonth(date), "yyyy-MM-dd");
         const fim = format(endOfMonth(date), "yyyy-MM-dd");
         
-        const m = await getUnifiedMetrics({
-          oficinaId: oficinaAtual.id,
-          inicio,
-          fim,
-        });
-        
-        data.push({
-          mes: format(date, "MMM/yy", { locale: ptBR }),
-          mao_obra: m.categorias.servicos.bruto,
-          pecas: m.categorias.pecas.bruto,
-          custo_pecas: m.operacional.custo_pecas,
-          lucro: m.operacional.lucro_operacional,
-          lucro_caixa: m.caixa.lucro_caixa_oficina_periodo,
-          faturamento: m.faturamento.liquido,
-        });
+        if (FINANCEIRO_V2_RELATORIOS_ENABLED) {
+          const m = await financeiroV2Service.getMetrics(oficinaAtual.id, inicio, fim);
+          data.push({
+            mes: format(date, "MMM/yy", { locale: ptBR }),
+            mao_obra: m.competencia.os_liquido,
+            pecas: m.competencia.vendas_balcao_liquido,
+            faturamento_bruto: m.competencia.faturamento_liquido,
+            faturamento_liquido: m.competencia.faturamento_liquido,
+            lucro_operacional: m.resultado.lucro_operacional,
+            custo_total: m.custos.cmv_total,
+            caixa_entradas: m.caixa.entradas_pagas_no_periodo,
+            caixa_saidas: m.caixa.saidas_pagas_no_periodo,
+            caixa_lucro: m.caixa.saldo_caixa_periodo,
+            recebido_vinc: m.competencia.recebido_vinculado_competencia,
+            saldo_rec: m.competencia.saldo_a_receber_competencia,
+          });
+        } else {
+          const m = await getUnifiedMetrics({
+            oficinaId: oficinaAtual.id,
+            inicio,
+            fim,
+          });
+          data.push({
+            mes: format(date, "MMM/yy", { locale: ptBR }),
+            mao_obra: m?.categorias?.servicos?.liquido ?? 0,
+            pecas: m?.categorias?.pecas?.liquido ?? 0,
+            faturamento_bruto: m?.faturamento?.bruto ?? 0,
+            faturamento_liquido: m?.faturamento?.liquido ?? 0,
+            lucro_operacional: m?.operacional?.lucro_operacional ?? 0,
+            custo_total: m?.operacional?.custo_pecas ?? 0,
+            caixa_entradas: m?.caixa?.entradas_oficina_periodo ?? 0,
+            caixa_saidas: m?.caixa?.saidas_oficina_periodo ?? 0,
+            caixa_lucro: m?.caixa?.lucro_caixa_oficina_periodo ?? 0,
+          });
+        }
       }
       return data;
     },
@@ -150,20 +176,40 @@ function RelatorioFaturamento() {
     staleTime: 60_000,
   });
 
-  const totalPeriodo = chartData.reduce((s, r) => s + r.faturamento, 0);
-  const totalLucroPeriodo = chartData.reduce((s, r) => s + r.lucro, 0);
+  const totalFaturamento = chartData.reduce((s, r) => s + r.faturamento_liquido, 0);
+  const totalLucro = chartData.reduce((s, r) => s + r.lucro_operacional, 0);
 
   return (
     <div className="space-y-4">
+      {FINANCEIRO_V2_RELATORIOS_ENABLED && (
+        <div className="space-y-3 mb-2">
+          <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
+            <Info className="w-3 h-3 mr-1" /> Modo Auditoria V2 Ativo
+          </Badge>
+
+          {FEATURE_FLAGS_V2.FINANCEIRO_V2_IGNORE_TEST_MANIFEST_ENABLED && (
+            <div className="bg-info/10 border border-info/30 rounded-xl p-3 flex items-start gap-3">
+              <Shield className="w-5 h-5 text-info shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-[10px] text-info uppercase font-bold tracking-wide">Modo V2 Limpo Ativo</p>
+                <p className="text-[11px] text-info/90 leading-tight">
+                  Registros de teste ignorados por manifesto em todos os indicadores. Nenhum dado real foi alterado fisicamente.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex flex-wrap gap-4">
           <div className="border-l border-border pl-4">
-            <p className="text-[10px] uppercase font-bold text-muted-foreground">Faturamento Líquido</p>
-            <p className="text-xl font-bold text-foreground">{formatCurrency(totalPeriodo)}</p>
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">Faturamento Líquido (Período)</p>
+            <p className="text-xl font-bold text-foreground">{formatCurrency(totalFaturamento)}</p>
           </div>
           <div className="border-l border-border pl-4">
-            <p className="text-[10px] uppercase font-bold text-success">Lucro Operacional</p>
-            <p className="text-xl font-bold text-success">{formatCurrency(totalLucroPeriodo)}</p>
+            <p className="text-[10px] uppercase font-bold text-success">Lucro Operacional (Período)</p>
+            <p className="text-xl font-bold text-success">{formatCurrency(totalLucro)}</p>
           </div>
         </div>
         <PeriodoSelector value={periodo} onChange={setPeriodo} />
@@ -173,77 +219,88 @@ function RelatorioFaturamento() {
         <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">Carregando...</div>
       ) : chartData.length === 0 ? (
         <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
-          Nenhum faturamento no período
+          Nenhum dado financeiro no período
         </div>
       ) : (
-        <div className="h-56 md:h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barGap={2}>
-              <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip
-                formatter={(value: number, name: string) => [
-                  formatCurrency(value),
-                  name === "mao_obra" ? "Mão de obra" : name === "pecas" ? "Peças" : "Lucro Operacional",
-                ]}
-                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
-              />
-              <Legend formatter={(v) => (v === "mao_obra" ? "Mão de obra" : v === "pecas" ? "Peças" : "Lucro Operacional")} />
-              <Bar dataKey="mao_obra" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="pecas" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="lucro" name="Lucro Operacional" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="lucro_caixa" name="Lucro de Caixa" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} barGap={4}>
+                <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  formatter={(value: number, name: string) => [
+                    formatCurrency(value),
+                    name === "mao_obra" ? "Serviços (Líq)" : 
+                    name === "pecas" ? "Peças (Líq)" : 
+                    name === "lucro_operacional" ? "Lucro Operacional" : "Lucro de Caixa",
+                  ]}
+                  contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+                />
+                <Legend />
+                <Bar dataKey="mao_obra" name="Serviços (Líq)" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="pecas" name="Peças (Líq)" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="lucro_operacional" name="Lucro Operacional" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="caixa_lucro" name="Lucro de Caixa" fill="hsl(var(--primary))" opacity={0.6} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {FINANCEIRO_V2_RELATORIOS_ENABLED && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 p-4 rounded-2xl bg-muted/30 border border-border/50">
+               <div>
+                <p className="text-[9px] uppercase font-bold text-muted-foreground">Recebido Vinc.</p>
+                <p className="text-sm font-semibold">{formatCurrency(chartData[chartData.length-1].recebido_vinc)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase font-bold text-muted-foreground">Saldo a Rec. (Comp)</p>
+                <p className="text-sm font-semibold">{formatCurrency(chartData[chartData.length-1].saldo_rec)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase font-bold text-muted-foreground">Caixa Entradas</p>
+                <p className="text-sm font-semibold">{formatCurrency(chartData[chartData.length-1].caixa_entradas)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase font-bold text-muted-foreground">Caixa Saídas</p>
+                <p className="text-sm font-semibold">{formatCurrency(chartData[chartData.length-1].caixa_saidas)}</p>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-// ─── RELATÓRIO 2: SERVIÇOS MAIS REALIZADOS ─────────────────
+// ─── RELATÓRIO 2: RANKING DE SERVIÇOS (FASE 2C) ──────────────
 function RelatorioServicos() {
   const { oficinaAtual } = useOficina();
   const [periodo, setPeriodo] = useState<PeriodoFilter>("3m");
-  const dataInicio = getDataInicio(periodo);
-
-  const { data: servicos = [], isLoading } = useQuery({
-    queryKey: ["relatorio-servicos-ranking", oficinaAtual?.id, periodo],
+  
+  const { data: ranking = [], isLoading } = useQuery({
+    queryKey: ["relatorio-servicos-ranking-unificado", oficinaAtual?.id, periodo],
     queryFn: async () => {
       if (!oficinaAtual) return [];
-      const { data, error } = await supabase
-        .from("ordens_servico")
-        .select("tipo_servico, valor_servico, custo_servico, status, itens_os(valor_total, quantidade, valor_unitario, custo_unitario)")
-        .eq("oficina_id", oficinaAtual.id)
-        .gte("data_servico", format(dataInicio, "yyyy-MM-dd"));
-      if (error) throw error;
-      return (data || []).map((s: any) => {
-        const totalItens = (s.itens_os || []).reduce((acc: number, item: any) =>
-          acc + (item.valor_total ?? ((item.quantidade || 0) * (item.valor_unitario || 0))), 0);
-        const valorTotal = (Number(s.valor_servico) || 0) > 0 ? (Number(s.valor_servico) || 0) : totalItens;
-        const custoTotal = (Number(s.custo_servico) || 0) > 0 ? (Number(s.custo_servico) || 0) : (s.itens_os || []).reduce((acc: number, item: any) => acc + ((item.custo_unitario || 0) * (item.quantidade || 1)), 0);
-        return { ...s, valor_total_real: valorTotal, lucro_real: valorTotal - custoTotal };
+      const now = new Date();
+      const inicio = format(getDataInicio(periodo), "yyyy-MM-dd");
+      const fim = format(now, "yyyy-MM-dd");
+      
+      const { data, error } = await supabase.rpc("get_financeiro_rankings_unificados", {
+        p_oficina_id: oficinaAtual.id,
+        p_data_inicio: inicio,
+        p_data_fim: fim,
       });
+
+      if (error) throw error;
+      return (data as any)?.servicos || [];
     },
     enabled: !!oficinaAtual,
   });
 
-  const ranking = useMemo(() => {
-    const map: Record<string, { nome: string; qtd: number; valor: number; lucro: number }> = {};
-    servicos.forEach((s: any) => {
-      const key = s.tipo_servico;
-      if (!map[key]) map[key] = { nome: key, qtd: 0, valor: 0, lucro: 0 };
-      map[key].qtd++;
-      map[key].valor += Number(s.valor_total_real || 0);
-      map[key].lucro += Number(s.lucro_real || 0);
-    });
-    return Object.values(map).sort((a, b) => b.qtd - a.qtd);
-  }, [servicos]);
-
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">{servicos.length} serviços no período</p>
+        <p className="text-sm text-muted-foreground">{ranking.length} categorias de serviço</p>
         <PeriodoSelector value={periodo} onChange={setPeriodo} />
       </div>
 
@@ -255,29 +312,27 @@ function RelatorioServicos() {
         </div>
       ) : (
         <div className="space-y-2">
-          {ranking.slice(0, 10).map((item, i) => (
+          {ranking.slice(0, 10).map((item: any, i: number) => (
             <div
-              key={item.nome}
+              key={item.tipo_servico}
               className="flex items-center gap-3 p-3 rounded-xl bg-muted/40"
             >
               <span className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
                 {i + 1}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{item.nome}</p>
+                <p className="text-sm font-medium text-foreground truncate">{item.tipo_servico}</p>
                 <p className="text-xs text-muted-foreground">
-                  {item.qtd}x realizado
+                  {item.total_os}x realizado
                 </p>
               </div>
-              <div className="shrink-0">
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-foreground">
-                    {formatCurrency(item.valor)}
-                  </p>
-                  <p className="text-[10px] text-success font-medium">
-                    Lucro: {formatCurrency(item.lucro)}
-                  </p>
-                </div>
+              <div className="shrink-0 text-right">
+                <p className="text-sm font-semibold text-foreground">
+                  {formatCurrency(item.faturamento_total)}
+                </p>
+                <p className="text-[10px] text-success font-medium">
+                  Lucro: {formatCurrency(item.lucro_total)}
+                </p>
               </div>
             </div>
           ))}
