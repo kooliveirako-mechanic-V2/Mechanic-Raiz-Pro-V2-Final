@@ -9,6 +9,7 @@ import { useOficina } from "@/contexts/OficinaContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFormasPagamento } from "@/hooks/useFormasPagamento";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { createEmptyElectricDVIData, ElectricDVIData } from "./ElectricDVIWizard";
 import { ConclusaoSection } from "@/components/servicos/ConclusaoSection";
 import { ItensOSList } from "@/components/servicos/ItensOSList";
@@ -538,8 +539,8 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
             p_valor_mao_obra: parseCurrency(f.valorServico),
           };
 
-          const { data: rpcResult, error: rpcError } = await supabase.rpc(
-            "finalizar_os_atomica" as any,
+          const { data: rpcResult, error: rpcError } = await rpcWithRetry(
+            "finalizar_os_atomica",
             rpcPayload,
           );
 
@@ -660,7 +661,7 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
           p_tempo_diagnostico_minutos: f.electricDVIData.tempoDiagnosticoMinutos || 0,
         };
 
-        const { data: rpcResult, error: rpcError } = await supabase.rpc("criar_os_completa" as any, rpcPayload);
+        const { data: rpcResult, error: rpcError } = await rpcWithRetry("criar_os_completa", rpcPayload);
         if (rpcError) throw rpcError;
 
         const result = rpcResult as { success: boolean; os_id: string; numero: number; valor_total: number; custo_total: number; status: string; total_itens_inseridos: number };
