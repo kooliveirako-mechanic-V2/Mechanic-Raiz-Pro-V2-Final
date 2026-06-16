@@ -40,6 +40,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { useOrcamentoPagamento } from "@/hooks/useOrcamentoPagamento";
 import { getPublicOrcamentoLink } from "@/utils/url";
 import { format } from "date-fns";
@@ -277,8 +278,8 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
             estoque_id: item.estoque_id || null,
           }));
 
-          const { data: rpcResult, error: rpcError } = await supabase.rpc(
-            'criar_orcamento_completo' as any,
+          const { data: rpcResult, error: rpcError } = await rpcWithRetry(
+            'criar_orcamento_completo',
             {
               p_oficina_id: oficinaAtual.id,
               p_titulo: titulo,
@@ -288,7 +289,7 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
               p_validade: validade || null,
               p_desconto: desconto ? parseFloat(desconto) : 0,
               p_observacoes: observacoes || null,
-              p_itens: JSON.stringify(itensPayload),
+              p_itens: itensPayload,
             }
           );
 
@@ -369,8 +370,8 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
     
     try {
       // ARQUITETURA ATÔMICA: Tudo em uma única transação via RPC
-      const { data: rpcResult, error: rpcError } = await supabase.rpc(
-        'converter_orcamento_em_os' as any,
+      const { data: rpcResult, error: rpcError } = await rpcWithRetry(
+        'converter_orcamento_em_os',
         {
           p_orcamento_id: orcamento.id,
           p_oficina_id: oficinaAtual.id,
