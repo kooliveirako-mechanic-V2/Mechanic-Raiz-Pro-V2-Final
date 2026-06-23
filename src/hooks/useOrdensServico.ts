@@ -511,6 +511,31 @@ export function useOrdensServico() {
       });
     },
     onError: (error) => {
+      const raw = (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+
+      // Bloqueios conhecidos → mensagem acionável
+      if (raw.includes("parcela") && (raw.includes("pag") || raw.includes("quitad"))) {
+        toast.error("Não dá pra excluir esta OS", {
+          description: "Ela tem parcelas já pagas. Vá em Financeiro → estorne os pagamentos antes de excluir.",
+          duration: 7000,
+        });
+        return;
+      }
+      if (raw.includes("foreign key") || raw.includes("violates") || raw.includes("constraint")) {
+        toast.error("OS vinculada a outros registros", {
+          description: "Existem lançamentos ligados a esta OS. Estorne em Financeiro/Parcelas antes de excluir.",
+          duration: 7000,
+        });
+        return;
+      }
+      if (raw.includes("permission") || raw.includes("rls") || raw.includes("denied")) {
+        toast.error("Sem permissão para excluir", {
+          description: "Seu usuário não tem permissão. Peça ao dono da oficina ou tente novamente após relogar.",
+          duration: 7000,
+        });
+        return;
+      }
+
       const errorInfo = humanizeError(error);
       toast.error(errorInfo.message, {
         description: errorInfo.description,

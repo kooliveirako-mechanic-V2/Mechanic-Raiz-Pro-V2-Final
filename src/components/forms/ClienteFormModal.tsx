@@ -429,11 +429,11 @@ export function ClienteFormModal({ open, onOpenChange, cliente, initialTab, onNo
                   <Car className="w-4 h-4 text-accent" />
                   Veículos do Cliente
                 </Label>
-                <Button type="button" variant="outline" size="sm"
+                <Button type="button" size="sm"
                   onClick={() => { setVeiculoParaEditar(null); setVeiculoModalOpen(true); }}
-                  className="text-accent border-accent hover:bg-accent/10">
+                  className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold shadow-sm">
                   <Plus className="w-4 h-4 mr-1" />
-                  Adicionar
+                  Outro veículo
                 </Button>
               </div>
 
@@ -441,7 +441,7 @@ export function ClienteFormModal({ open, onOpenChange, cliente, initialTab, onNo
                 <div className="text-center py-4 text-muted-foreground bg-muted/30 rounded-lg">
                   <Car className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">Nenhum veículo cadastrado</p>
-                  <p className="text-xs">Clique em "Adicionar" para cadastrar</p>
+                  <p className="text-xs">Clique em "+ Outro veículo" para cadastrar</p>
                 </div>
               ) : (
                 <div className="space-y-2">

@@ -530,7 +530,18 @@ export function VendaRapidaModal({ open, onOpenChange }: VendaRapidaModalProps) 
                         className="flex items-center gap-2 bg-card border border-border rounded-lg p-2"
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{item.nome_item}</div>
+                          <div className="text-sm font-medium truncate flex items-center gap-1.5">
+                            {item.nome_item}
+                            {item.estoque_id ? (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-success bg-success/10 border border-success/30 px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0">
+                                <Package className="w-2.5 h-2.5" /> Estoque
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0">
+                                Manual
+                              </span>
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground">
                             {formatCurrency(item.valor_unitario)} ×{" "}
                             <span className="font-semibold text-foreground">{item.quantidade}</span> ={" "}
@@ -693,9 +704,28 @@ export function VendaRapidaModal({ open, onOpenChange }: VendaRapidaModalProps) 
                 {formatCurrency(success.valor_total)}
               </p>
               <p className="text-sm text-muted-foreground mt-1">{success.forma_pagamento}</p>
-              <p className="text-xs text-muted-foreground mt-3">
-                ✓ Estoque debitado &nbsp;•&nbsp; ✓ Lançado no financeiro
-              </p>
+              {(() => {
+                const pecasBaixadas = success.itens
+                  .filter((i) => i.estoque_id)
+                  .reduce((s, i) => s + i.quantidade, 0);
+                const manuais = success.itens.filter((i) => !i.estoque_id).length;
+                return (
+                  <div className="mt-3 inline-flex flex-col gap-1 text-xs">
+                    {pecasBaixadas > 0 && (
+                      <span className="inline-flex items-center gap-1 text-success font-medium">
+                        <Package className="w-3.5 h-3.5" />
+                        {pecasBaixadas} {pecasBaixadas === 1 ? "peça baixada" : "peças baixadas"} do estoque
+                      </span>
+                    )}
+                    {manuais > 0 && (
+                      <span className="text-muted-foreground">
+                        {manuais} {manuais === 1 ? "item manual" : "itens manuais"} (não mexem no estoque)
+                      </span>
+                    )}
+                    <span className="text-muted-foreground">✓ Lançado no financeiro</span>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="w-full space-y-2 pt-2">
