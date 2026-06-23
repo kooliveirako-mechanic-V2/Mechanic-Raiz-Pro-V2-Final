@@ -29,7 +29,9 @@ const veiculoSchema = z.object({
   placa: z.string().trim().max(10, "Máximo 10 caracteres").optional().or(z.literal("")),
   km_atual: z.number().min(0).optional().nullable(),
   chassi: z.string().trim().max(20, "Máximo 20 caracteres").optional().or(z.literal("")),
+  cor: z.string().trim().max(30, "Máximo 30 caracteres").optional().or(z.literal("")),
   observacoes: z.string().trim().max(500, "Máximo 500 caracteres").optional().or(z.literal("")),
+
 });
 
 interface VeiculoFormModalProps {
@@ -63,15 +65,18 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
   const [placa, setPlaca] = useState("");
   const [kmAtual, setKmAtual] = useState("");
   const [chassi, setChassi] = useState("");
+  const [cor, setCor] = useState("");
   const [observacoes, setObservacoes] = useState("");
+
 
   const isEditing = !!veiculo;
   const formId = "veiculo-form";
 
   // ─── AutoSave: persiste rascunho APENAS em modo "novo" ───────────
   const draftData = useMemo(() => ({
-    clienteId, tipo, marca, modelo, ano, placa, kmAtual, chassi, observacoes,
-  }), [clienteId, tipo, marca, modelo, ano, placa, kmAtual, chassi, observacoes]);
+    clienteId, tipo, marca, modelo, ano, placa, kmAtual, chassi, cor, observacoes,
+  }), [clienteId, tipo, marca, modelo, ano, placa, kmAtual, chassi, cor, observacoes]);
+
 
   const { hasDraft, restore, clearDraft } = useAutoSave({
     key: `veiculo-form-${oficinaAtual?.id || "global"}-new`,
@@ -92,7 +97,9 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
       setPlaca(veiculo.placa || "");
       setKmAtual(veiculo.km_atual?.toString() || "");
       setChassi(veiculo.chassi || "");
+      setCor((veiculo as any).cor || "");
       setObservacoes(veiculo.observacoes || "");
+
     } else if (open) {
       // Tenta restaurar rascunho de novo veículo
       if (hasDraft && !hasRestoredRef.current) {
@@ -107,7 +114,9 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
           setPlaca(saved.placa || "");
           setKmAtual(saved.kmAtual || "");
           setChassi(saved.chassi || "");
+          setCor(saved.cor || "");
           setObservacoes(saved.observacoes || "");
+
           setErrors({});
           return;
         }
@@ -120,7 +129,9 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
       setPlaca("");
       setKmAtual("");
       setChassi("");
+      setCor("");
       setObservacoes("");
+
     }
     if (!open) hasRestoredRef.current = false;
     setErrors({});
@@ -152,7 +163,9 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
       placa,
       km_atual: kmAtual ? parseInt(kmAtual) : null,
       chassi,
+      cor,
       observacoes,
+
     });
     
     if (!result.success) {
@@ -205,7 +218,9 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
         placa: placa.trim().toUpperCase() || undefined,
         km_atual: kmAtual ? parseInt(kmAtual) : undefined,
         chassi: chassi.trim() || undefined,
+        cor: cor.trim() || undefined,
         observacoes: observacoes.trim() || undefined,
+
       };
 
       if (isEditing && veiculo) {
@@ -323,11 +338,20 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="chassi">Chassi</Label>
-        <Input id="chassi" placeholder="Número do chassi" value={chassi} onChange={(e) => setChassi(e.target.value)}
-          maxLength={20} className="h-12 text-base" />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="chassi">Chassi</Label>
+          <Input id="chassi" placeholder="Número do chassi" value={chassi} onChange={(e) => setChassi(e.target.value)}
+            maxLength={20} className="h-12 text-base" />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="cor">Cor</Label>
+          <Input id="cor" placeholder="Ex: Preto, Vermelho..." value={cor} onChange={(e) => setCor(e.target.value)}
+            maxLength={30} className="h-12 text-base" />
+        </div>
       </div>
+
 
       <div className="space-y-2">
         <Label htmlFor="observacoes">Observações</Label>

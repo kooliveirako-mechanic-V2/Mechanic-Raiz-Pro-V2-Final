@@ -18,6 +18,7 @@ export interface Veiculo {
   placa: string | null;
   km_atual: number;
   chassi: string | null;
+  cor: string | null;
   observacoes: string | null;
   foto_url: string | null;
   created_at: string;
@@ -39,8 +40,10 @@ export interface VeiculoInput {
   placa?: string;
   km_atual?: number;
   chassi?: string;
+  cor?: string;
   observacoes?: string;
 }
+
 
 export function useVeiculos() {
   const { oficinaAtual } = useOficina();
