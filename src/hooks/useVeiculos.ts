@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { useOficina } from "@/contexts/OficinaContext";
 import { toast } from "sonner";
 import { checkAndSendAchievement, getTableCount } from "@/lib/achievements";
@@ -165,7 +166,7 @@ export function useVeiculos() {
 
   const deleteVeiculo = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc("atomic_delete_veiculo", {
+      const { error } = await rpcWithRetry("atomic_delete_veiculo", {
         p_veiculo_id: id,
       });
       if (error) throw error;

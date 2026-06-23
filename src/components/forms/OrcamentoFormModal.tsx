@@ -126,7 +126,7 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
     setPendingItems(draft.pendingItems || []);
   }, []);
 
-  const { hasDraft, lastSaved, restore, clearDraft, isSaving } = useAutoSave({
+  const { hasDraft, lastSaved, restore, clearDraft, saveNow, isSaving } = useAutoSave({
     key: draftKey,
     data: draftData,
     enabled: open && !isEditing && !createdOrcamentoId && hasDraftContent,
@@ -237,6 +237,12 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
 
     if (!validateForm()) return;
 
+    // BLINDAGEM CONTRA PERDA: antes de chamar o servidor, força uma cópia local
+    // do orçamento completo. Se a RPC falhar, o rascunho continua recuperável.
+    if (!isEditing && !createdOrcamentoId && hasDraftContent) {
+      saveNow();
+    }
+
     // BLINDAGEM: Proteção contra duplo clique/submit
     const now = Date.now();
     if (isSubmittingRef.current || now - lastSubmitRef.current < 1000) {
@@ -307,7 +313,9 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
     } catch (error: any) {
       console.error("[OrcamentoForm] Erro ao salvar orçamento:", error);
       const msg = error?.message || "Erro ao salvar orçamento";
-      toast.error(msg);
+      toast.error("Orçamento não foi salvo", {
+        description: `${msg}. O rascunho foi mantido para tentar novamente.`,
+      });
     } finally {
       isSubmittingRef.current = false;
       setLoading(false);

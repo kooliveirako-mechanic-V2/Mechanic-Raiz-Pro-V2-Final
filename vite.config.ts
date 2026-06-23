@@ -9,6 +9,34 @@ import fs from "node:fs";
 const buildId = `b-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 const buildTime = new Date().toISOString();
 
+const normalizeRootAssetPaths = (html: string) => html
+  .replace(/(src|href)=(['"])\.\/assets\//g, "$1=$2/assets/")
+  .replace(/href=(['"])\.\/manifest\.webmanifest\1/g, "href=$1/manifest.webmanifest$1")
+  .replace(/navigator\.serviceWorker\.register\((['"])\.\/sw\.js\1/g, "navigator.serviceWorker.register($1/sw.js$1")
+  .replace(/scope:\s*(['"])\.\/\1/g, "scope: $1/$1");
+
+const forceRootAssetPathsPlugin = () => ({
+  name: "force-root-asset-paths",
+  enforce: "post" as const,
+  transformIndexHtml: {
+    order: "post" as const,
+    handler(html: string) {
+      return normalizeRootAssetPaths(html);
+    },
+  },
+  closeBundle() {
+    const indexPath = path.resolve(__dirname, "dist/index.html");
+    if (!fs.existsSync(indexPath)) return;
+
+    const html = fs.readFileSync(indexPath, "utf8");
+    const fixedHtml = normalizeRootAssetPaths(html);
+
+    if (fixedHtml !== html) {
+      fs.writeFileSync(indexPath, fixedHtml);
+    }
+  },
+});
+
 export default defineConfig(({ mode }) => ({
   base: '/',
   define: {
@@ -84,6 +112,7 @@ export default defineConfig(({ mode }) => ({
         runtimeCaching: [],
       },
     }),
+    forceRootAssetPathsPlugin(),
   ].filter(Boolean),
   build: {
     rollupOptions: {

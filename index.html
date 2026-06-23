@@ -100,8 +100,15 @@
     <!-- [Fase I] Marketing Oracle capi-client.js REMOVIDO do <head>.
          Motivo: (1) expunha LEADS_SECRET no HTML/bundle (P0 secret leak)
                  (2) duplicava PageView com o GTM (browser sem eventID compartilhado).
-         O Marketing Oracle voltará server-side, via edge/proxy seguro, com o
-         mesmo event_id gerado por trackEvent() (deduplicação garantida). -->
+         O Marketing Oracle agora opera como auditor passivo ouvindo o dataLayer. -->
+    <script 
+      src="https://marketing-tracking.lovable.app/oracle-auditor.js" 
+      data-project-id="4ca902a8-f211-4895-9cf7-6801ab8f1f43"
+      data-mode="dataLayer-listener"
+      data-auto-pageview="false"
+      data-debug="true">
+    </script>
+
     
 
     <!-- UTM Persistence: salva UTMs/click IDs no localStorage na 1ª visita -->

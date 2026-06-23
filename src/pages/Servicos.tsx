@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef, useDeferredValue, startTransition } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { useModalUrl } from "@/hooks/useModalUrl";
 // upsertFinanceiroOS no longer needed here — Kanban uses finalizar_os_atomica RPC
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -308,8 +309,8 @@ export default function Servicos() {
 
     try {
       // ATOMIC RPC: Everything in a single transaction
-      const { data: rpcResult, error: rpcError } = await supabase.rpc(
-        "finalizar_os_atomica" as any,
+      const { data: rpcResult, error: rpcError } = await rpcWithRetry(
+        "finalizar_os_atomica",
         {
           p_os_id: ordem.id,
           p_forma_pagamento: formaPagamentoNome,
@@ -360,8 +361,8 @@ export default function Servicos() {
   // CAUSA RAIZ: Reabrir OS usa RPC atômica que reverte estoque e financeiro
   const handleReopenOS = async (ordem: OrdemServico) => {
     try {
-      const { data: result, error } = await supabase.rpc(
-        "reabrir_os_atomica" as any,
+      const { data: result, error } = await rpcWithRetry(
+        "reabrir_os_atomica",
         { p_os_id: ordem.id }
       );
 

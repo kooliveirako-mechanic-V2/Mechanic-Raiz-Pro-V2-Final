@@ -6,6 +6,22 @@
       "has": [{ "type": "host", "value": "mt.mechanicraizpro.com.br" }]
     },
     {
+      "source": "/:section/assets/:file*",
+      "destination": "/assets/:file*"
+    },
+    {
+      "source": "/:section/manifest.webmanifest",
+      "destination": "/manifest.webmanifest"
+    },
+    {
+      "source": "/:section/sw.js",
+      "destination": "/sw.js"
+    },
+    {
+      "source": "/:section/pwa-:file*",
+      "destination": "/pwa-:file*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

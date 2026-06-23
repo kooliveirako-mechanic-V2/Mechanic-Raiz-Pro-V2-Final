@@ -1,6 +1,6 @@
-import { supabase } from "@/integrations/supabase/client";
 import { Sentry } from "@/lib/sentry";
 import { UpsertFinanceiroOSResult } from "@/lib/rpcTypes";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 
 /**
  * Centralized financial record creation for OS finalization.
@@ -24,7 +24,7 @@ export async function upsertFinanceiroOS(params: {
   const { oficina_id, ordem_servico_id, tipo_servico, valor_mao_de_obra, forma_pagamento_id, origem, numero_parcelas } = params;
 
   try {
-    const { data, error } = await supabase.rpc("upsert_financeiro_os" as any, {
+    const { data, error } = await rpcWithRetry("upsert_financeiro_os", {
       p_oficina_id: oficina_id,
       p_ordem_servico_id: ordem_servico_id,
       p_tipo_servico: tipo_servico,

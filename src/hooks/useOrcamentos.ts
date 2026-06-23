@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { useOficina } from "@/contexts/OficinaContext";
 import { toast } from "sonner";
 import { withRetry, humanizeError } from "@/lib/errorHandling";
@@ -162,7 +163,7 @@ export function useOrcamentos() {
     mutationFn: async (id: string) => {
       // HARDENING TRANSACIONAL: Usa RPC server-side para atomicidade
       // Delete itens + parcelas + pagamentos + orçamento em transação única
-      const { data, error } = await supabase.rpc("atomic_delete_orcamento" as any, {
+      const { data, error } = await rpcWithRetry("atomic_delete_orcamento", {
         p_orcamento_id: id,
       });
 
@@ -209,7 +210,7 @@ export function useOrcamentos() {
   // This mutation is kept for manual recalc (e.g. after bulk operations)
   const recalcularTotais = useMutation({
     mutationFn: async (orcamentoId: string) => {
-      const { error } = await supabase.rpc("recalcular_totais_orcamento" as any, {
+      const { error } = await rpcWithRetry("recalcular_totais_orcamento", {
         p_orcamento_id: orcamentoId,
       });
       if (error) throw error;
@@ -258,7 +259,6 @@ export function useItensOrcamento(orcamentoId: string | undefined) {
   const addItem = useMutation({
     mutationFn: async (input: ItemOrcamentoInput) => {
       const maoObra = input.valor_mao_obra || 0;
-      const valorTotal = (input.quantidade * input.valor_unitario) + maoObra;
 
       const { data, error } = await supabase
         .from("itens_orcamento")
@@ -271,7 +271,6 @@ export function useItensOrcamento(orcamentoId: string | undefined) {
           valor_unitario: input.valor_unitario,
           custo_unitario: input.custo_unitario,
           valor_mao_obra: maoObra,
-          valor_total: valorTotal,
         })
         .select()
         .single();
@@ -298,20 +297,6 @@ export function useItensOrcamento(orcamentoId: string | undefined) {
       if (input.valor_unitario !== undefined) updateData.valor_unitario = input.valor_unitario;
       if (input.custo_unitario !== undefined) updateData.custo_unitario = input.custo_unitario;
       if (input.valor_mao_obra !== undefined) updateData.valor_mao_obra = input.valor_mao_obra;
-
-      // Recalculate valor_total when relevant fields change
-      if (input.quantidade !== undefined || input.valor_unitario !== undefined || input.valor_mao_obra !== undefined) {
-        const { data: current } = await supabase
-          .from("itens_orcamento")
-          .select("quantidade, valor_unitario, valor_mao_obra")
-          .eq("id", id)
-          .single();
-
-        const qtd = input.quantidade ?? current?.quantidade ?? 1;
-        const valor = input.valor_unitario ?? current?.valor_unitario ?? 0;
-        const maoObra = input.valor_mao_obra ?? current?.valor_mao_obra ?? 0;
-        updateData.valor_total = (qtd * valor) + maoObra;
-      }
 
       const { error } = await supabase
         .from("itens_orcamento")

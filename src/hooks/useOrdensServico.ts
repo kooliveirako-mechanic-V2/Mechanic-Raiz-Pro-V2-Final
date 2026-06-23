@@ -8,6 +8,9 @@ import { checkAndSendAchievement, getTableCount } from "@/lib/achievements";
 import { trackCreatedFirstOS, trackOSFinalized } from "@/lib/pixelEvents";
 import { trackFunnelEvent } from "@/lib/funnelTracking";
 import { CriarOSCompletaResult, AtomicDeleteResult } from "@/lib/rpcTypes";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
+import { rpcSentinela } from "@/lib/sentinela";
+import { isAuthError } from "@/lib/authGuard";
 
 // Helper: Sync vehicle mileage when OS records km_no_servico
 async function syncVehicleKm(veiculoId: string, kmNoServico: number | undefined | null) {
@@ -263,7 +266,7 @@ export function useOrdensServico() {
       // ARQUITETURA ATÔMICA: Usa RPC criar_os_completa ao invés de INSERT direto
       // Isso garante que cabeçalho + itens + totais + financeiro são criados
       // em uma única transação — sem risco de dados parciais
-      const { data, error } = await supabase.rpc("criar_os_completa" as any, {
+      const { data, error } = await rpcSentinela("criar_os_completa", {
         p_oficina_id: oficinaAtual.id,
         p_cliente_id: input.cliente_id,
         p_veiculo_id: input.veiculo_id,
@@ -305,6 +308,10 @@ export function useOrdensServico() {
 
       if (error) {
         console.error("[OS] Erro RPC criar_os_completa:", error.message, error.code);
+        if (isAuthError(error)) {
+          throw new Error("Sessão expirada. Tente salvar novamente em instantes.");
+        }
+        // Mensagem real para o usuário, não mais genérica
         throw new Error(error.message || "Erro ao criar OS");
       }
 
@@ -480,7 +487,7 @@ export function useOrdensServico() {
       // HARDENING TRANSACIONAL: Usa RPC server-side para garantir atomicidade
       // Todas as operações (restore estoque, delete itens, financeiro, parcelas, OS)
       // acontecem em uma única transação — sem risco de estado parcial
-      const { data, error } = await supabase.rpc("atomic_delete_os" as any, {
+      const { data, error } = await rpcWithRetry("atomic_delete_os", {
         p_os_id: id,
       });
 

@@ -2,7 +2,8 @@ import { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOficina } from "@/contexts/OficinaContext";
-import { Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -10,7 +11,7 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading: authLoading } = useAuth();
-  const { oficinas, loading: oficinaLoading, initialized } = useOficina();
+  const { oficinas, loading: oficinaLoading, initialized, loadError, refetch } = useOficina();
 
   // Guard: if a recovery link landed on a protected route by mistake,
   // forward straight to /reset-password before doing anything else.
@@ -43,6 +44,22 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin text-accent" />
           <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (user && loadError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 text-center shadow-lg">
+          <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-warning" />
+          <h1 className="text-lg font-semibold text-foreground">Conexão instável</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{loadError}</p>
+          <Button className="mt-5 w-full" onClick={() => void refetch()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Tentar de novo
+          </Button>
         </div>
       </div>
     );

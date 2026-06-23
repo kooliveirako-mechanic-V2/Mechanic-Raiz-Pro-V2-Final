@@ -76,6 +76,7 @@ const CadastroConcluido = lazyWithRetry(() => import("./pages/CadastroConcluido"
 const Convite = lazyWithRetry(() => import("./pages/Convite"));
 const Solicitacoes = lazyWithRetry(() => import("./pages/Solicitacoes"));
 const AgendamentoPublico = lazyWithRetry(() => import("./pages/AgendamentoPublico"));
+const Sentinela = lazyWithRetry(() => import("./pages/Sentinela"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -153,6 +154,7 @@ function AppContent() {
                     <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
                     <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
                     <Route path="/upgrade" element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
+                    <Route path="/sentinela" element={<ProtectedRoute><Sentinela /></ProtectedRoute>} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>

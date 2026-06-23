@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { useOficina } from "@/contexts/OficinaContext";
 import { toast } from "sonner";
 import { humanizeError, withRetry } from "@/lib/errorHandling";
@@ -89,7 +90,7 @@ export function useParcelas(ordemServicoId?: string, orcamentoId?: string) {
     mutationFn: async (input: GerarParcelasInput) => {
       if (!oficinaAtual) throw new Error("Nenhuma oficina selecionada");
 
-      const { data, error } = await supabase.rpc("gerar_parcelas_atomic" as any, {
+      const { data, error } = await rpcWithRetry("gerar_parcelas_atomic", {
         p_oficina_id: oficinaAtual.id,
         p_ordem_servico_id: input.ordem_servico_id || null,
         p_orcamento_id: input.orcamento_id || null,

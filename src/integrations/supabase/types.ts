@@ -2206,6 +2206,57 @@ export type Database = {
           },
         ]
       }
+      sentinela_alertas_enviados: {
+        Row: {
+          alert_key: string
+          alert_type: string
+          created_at: string
+          id: string
+          payload: Json | null
+          sent_at: string
+        }
+        Insert: {
+          alert_key: string
+          alert_type: string
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          sent_at?: string
+        }
+        Update: {
+          alert_key?: string
+          alert_type?: string
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          sent_at?: string
+        }
+        Relationships: []
+      }
+      sentinela_snapshot: {
+        Row: {
+          calculated_at: string
+          created_at: string
+          id: number
+          payload: Json
+          updated_at: string
+        }
+        Insert: {
+          calculated_at?: string
+          created_at?: string
+          id?: number
+          payload: Json
+          updated_at?: string
+        }
+        Update: {
+          calculated_at?: string
+          created_at?: string
+          id?: number
+          payload?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       solicitacoes_agendamento: {
         Row: {
           cliente_email: string | null
@@ -2849,19 +2900,14 @@ export type Database = {
         }
         Returns: Json
       }
-      funnel_scoreboard:
-        | {
-            Args: { p_end_date?: string; p_start_date?: string }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_end_date?: string
-              p_oficina_tipo?: string
-              p_start_date?: string
-            }
-            Returns: Json
-          }
+      funnel_scoreboard: {
+        Args: {
+          p_end_date?: string
+          p_oficina_tipo?: string
+          p_start_date?: string
+        }
+        Returns: Json
+      }
       gerar_parcelas_atomic: {
         Args: {
           p_data_primeira_parcela?: string
@@ -2965,6 +3011,11 @@ export type Database = {
       }
       get_public_os: { Args: { os_id: string }; Returns: Json }
       get_public_os_by_numero: { Args: { os_numero: number }; Returns: Json }
+      get_sentinela_detectores: { Args: never; Returns: Json }
+      get_sentinela_detectores_admin: { Args: never; Returns: Json }
+      get_sentinela_logs: { Args: { _limit?: number }; Returns: Json }
+      get_sentinela_modulos: { Args: never; Returns: Json }
+      get_sentinela_score: { Args: never; Returns: Json }
       get_slots_disponiveis: {
         Args: { p_data: string; p_slug: string }
         Returns: Json
@@ -3005,6 +3056,7 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: { p_user_id: string }; Returns: boolean }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       mask_chassi: {
         Args: { can_view: boolean; chassi: string }
         Returns: string
@@ -3025,9 +3077,10 @@ export type Database = {
         Args: { p_oficina_id: string }
         Returns: undefined
       }
-      reabrir_os_atomica:
-        | { Args: { p_os_id: string }; Returns: Json }
-        | { Args: { p_motivo?: string; p_os_id: string }; Returns: Json }
+      reabrir_os_atomica: {
+        Args: { p_motivo?: string; p_os_id: string }
+        Returns: Json
+      }
       reabrir_os_v2: { Args: { p_os_id: string }; Returns: Json }
       recalcular_totais_orcamento: {
         Args: { p_orcamento_id: string }

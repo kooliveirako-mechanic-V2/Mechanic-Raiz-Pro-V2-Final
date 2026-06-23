@@ -1,6 +1,7 @@
 import React, { Component, ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { logFrontendError } from "@/lib/sentinela";
 
 interface Props {
   children: ReactNode;
@@ -13,7 +14,7 @@ interface State {
 
 /**
  * Error boundary para páginas internas.
- * Evita tela branca ao capturar erros em hooks/componentes filhos.
+ * Camada 1 do Sentinela: grava runtime_error em audit_logs + Sentry.
  */
 export class PageErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
@@ -27,6 +28,9 @@ export class PageErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("[PageErrorBoundary]", error, info.componentStack);
+    void logFrontendError("PageErrorBoundary", error, {
+      componentStack: info.componentStack?.slice(0, 1000),
+    });
   }
 
   handleRetry = () => {

@@ -100,7 +100,8 @@ app.asar.unpacked/
 *.img
 *.bak
 *.dump
-.env.local
-.env
-node_modules/
-dist/
+*.exe
+electron/
+release/
+dist-electron/
+out/

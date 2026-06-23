@@ -138,8 +138,9 @@ async function bootApp() {
 
   // ── Dynamic imports: only NOW do we load app modules ────────
   try {
-    const [{ initSentry }, { createRoot }, { default: App }] = await Promise.all([
+    const [{ initSentry }, { initAuthGuard }, { createRoot }, { default: App }] = await Promise.all([
       import("./lib/sentry"),
+      import("./lib/authGuard"),
       import("react-dom/client"),
       import("./App"),
     ]);
@@ -148,6 +149,7 @@ async function bootApp() {
     await import("./index.css");
 
     initSentry();
+    initAuthGuard();
 
     createRoot(document.getElementById("root")!).render(<App />);
   } catch (err) {

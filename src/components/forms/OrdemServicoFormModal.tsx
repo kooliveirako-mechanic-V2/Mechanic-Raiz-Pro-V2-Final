@@ -10,6 +10,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useFormasPagamento } from "@/hooks/useFormasPagamento";
 import { supabase } from "@/integrations/supabase/client";
 import { rpcWithRetry } from "@/lib/rpcWithRetry";
+import { rpcSentinela } from "@/lib/sentinela";
 import { createEmptyElectricDVIData, ElectricDVIData } from "./ElectricDVIWizard";
 import { ConclusaoSection } from "@/components/servicos/ConclusaoSection";
 import { ItensOSList } from "@/components/servicos/ItensOSList";
@@ -661,7 +662,7 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
           p_tempo_diagnostico_minutos: f.electricDVIData.tempoDiagnosticoMinutos || 0,
         };
 
-        const { data: rpcResult, error: rpcError } = await rpcWithRetry("criar_os_completa", rpcPayload);
+        const { data: rpcResult, error: rpcError } = await rpcSentinela("criar_os_completa", rpcPayload);
         if (rpcError) throw rpcError;
 
         const result = rpcResult as { success: boolean; os_id: string; numero: number; valor_total: number; custo_total: number; status: string; total_itens_inseridos: number };
@@ -676,7 +677,7 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
         const valorSinalNum = parseFloat(sinalInicial.valor.replace(",", ".")) || 0;
         if (valorSinalNum > 0) {
           try {
-            await supabase.rpc("registrar_sinal_os" as any, {
+            await rpcWithRetry("registrar_sinal_os", {
               p_os_id: result.os_id,
               p_valor: valorSinalNum,
               p_forma_pagamento_id: sinalInicial.formaId || null,

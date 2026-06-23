@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 // parseCurrency handles Brazilian thousand separators correctly (e.g. "1.500,50" → 1500.5)
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -355,8 +356,8 @@ export function OSRapidaModal({ open, onOpenChange }: OSRapidaModalProps) {
         p_forma_pagamento_id: isFinalizar ? (formaPagamentoId || null) : null,
       };
 
-      const { data: rpcResult, error: rpcError } = await supabase.rpc(
-        "criar_os_completa" as any,
+      const { data: rpcResult, error: rpcError } = await rpcWithRetry(
+        "criar_os_completa",
         rpcPayload,
       );
 

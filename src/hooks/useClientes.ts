@@ -1,5 +1,6 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { useOficina } from "@/contexts/OficinaContext";
 import { toast } from "sonner";
 import { checkAndSendAchievement, getTableCount } from "@/lib/achievements";
@@ -166,7 +167,7 @@ export function useClientes() {
       // HARDENING TRANSACIONAL: Usa RPC server-side para atomicidade
       // Verifica OS ativas, limpa recorrências, veículos, orçamentos
       // e cliente em transação única — sem risco de estado parcial
-      const { data, error } = await supabase.rpc("atomic_delete_cliente" as any, {
+      const { data, error } = await rpcWithRetry("atomic_delete_cliente", {
         p_cliente_id: id,
       });
 

@@ -20,11 +20,28 @@ interface OficinaContextType {
   setOficinaAtual: (oficina: Oficina | null) => void;
   loading: boolean;
   initialized: boolean;
+  loadError: string | null;
   refetch: () => Promise<void>;
   createOficina: (data: { nome: string; telefone?: string; endereco?: string; tipo?: string }) => Promise<{ error: Error | null; oficina_id?: string }>;
 }
 
 const OficinaContext = createContext<OficinaContextType | undefined>(undefined);
+
+// Timeout wrapper para evitar spinner infinito em conexões 3G/4G ruins.
+// Se a query travar > 15s, rejeita e libera a UI ao invés de ficar em loading eterno.
+const QUERY_TIMEOUT_MS = 15000;
+function withTimeout<T>(promise: PromiseLike<T>, label: string, ms = QUERY_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => {
+      console.warn(`[OficinaContext] Query timeout (${ms}ms): ${label}`);
+      reject(new Error(`query_timeout:${label}`));
+    }, ms);
+    Promise.resolve(promise).then(
+      (v) => { clearTimeout(t); resolve(v as T); },
+      (e) => { clearTimeout(t); reject(e); }
+    );
+  });
+}
 
 export function OficinaProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -32,6 +49,7 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
   const [oficinaAtual, setOficinaAtualState] = useState<Oficina | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Wrapper to persist oficinaAtual to localStorage and Profile
   const setOficinaAtual = async (oficina: Oficina | null) => {
@@ -59,6 +77,7 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
     if (!user) {
       setOficinas([]);
       setOficinaAtualState(null);
+      setLoadError(null);
       localStorage.removeItem('oficinaAtual');
       setLoading(false);
       setInitialized(true);
@@ -67,23 +86,36 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
 
     // Set loading to true before fetching
     setLoading(true);
+    setLoadError(null);
 
     try {
       // Fetch oficinas where user is owner - sorted by created_at (oldest first as they are usually the main ones)
-      const { data: ownedData, error: ownedError } = await supabase
-        .from("oficinas")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true });
+      const { data: ownedData, error: ownedError } = await withTimeout(
+        supabase
+          .from("oficinas")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true }),
+        "oficinas_owned"
+      );
 
       if (ownedError) throw ownedError;
 
-      // Fetch oficinas where user is a team member
-      const { data: teamRoles } = await supabase
-        .from("user_roles")
-        .select("oficina_id")
-        .eq("user_id", user.id)
-        .eq("active", true);
+      // Fetch oficinas where user is a team member (não-crítico: se falhar, segue só com owned)
+      let teamRoles: { oficina_id: string }[] | null = null;
+      try {
+        const res = await withTimeout(
+          supabase
+            .from("user_roles")
+            .select("oficina_id")
+            .eq("user_id", user.id)
+            .eq("active", true),
+          "user_roles"
+        );
+        teamRoles = res.data;
+      } catch (e) {
+        console.warn("[OficinaContext] user_roles fetch failed, prosseguindo só com owned:", e);
+      }
 
       let teamData: typeof ownedData = [];
       if (teamRoles && teamRoles.length > 0) {
@@ -92,30 +124,41 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
         const missingIds = teamIds.filter(id => !ownedIds.has(id));
         
         if (missingIds.length > 0) {
-          const { data: td } = await supabase
-            .from("oficinas")
-            .select("*")
-            .in("id", missingIds);
-          teamData = td || [];
+          try {
+            const { data: td } = await withTimeout(
+              supabase.from("oficinas").select("*").in("id", missingIds),
+              "oficinas_team"
+            );
+            teamData = td || [];
+          } catch (e) {
+            console.warn("[OficinaContext] team oficinas fetch failed:", e);
+          }
         }
       }
 
       const data = [...(ownedData || []), ...teamData];
 
       setOficinas(data || []);
+      setLoadError(null);
       
-      // 1. Try to restore from Profile (most reliable)
+      // 1. Try to restore from Profile (most reliable) — não-crítico: se travar, cai pro localStorage
       let initialOficina: Oficina | null = null;
       
       if (user?.id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('last_oficina_id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-          
-        if (profile?.last_oficina_id) {
-          initialOficina = data.find(o => o.id === profile.last_oficina_id) || null;
+        try {
+          const { data: profile } = await withTimeout(
+            supabase
+              .from('profiles')
+              .select('last_oficina_id')
+              .eq('user_id', user.id)
+              .maybeSingle(),
+            "profile_last_oficina"
+          );
+          if (profile?.last_oficina_id) {
+            initialOficina = data.find(o => o.id === profile.last_oficina_id) || null;
+          }
+        } catch (e) {
+          console.warn("[OficinaContext] profile fetch failed, usando fallback:", e);
         }
       }
 
@@ -134,8 +177,6 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
 
       // 3. Fallback to the one with the most data (heuristic to avoid ghost workshops)
       if (!initialOficina && data.length > 0) {
-        // Since we can't easily check all counts here without multiple queries, 
-        // we'll just pick the first one but we've improved the order in fetchOficinas if possible.
         initialOficina = data[0];
       }
 
@@ -144,6 +185,21 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Error fetching oficinas:", error);
+      // CRÍTICO: mesmo em erro/timeout, NÃO deixar UI travada.
+      // Tenta restaurar do localStorage como último recurso para não bloquear o app.
+      const savedOficina = localStorage.getItem('oficinaAtual');
+      let restoredFromCache = false;
+      if (savedOficina) {
+        try {
+          const parsed = JSON.parse(savedOficina);
+          setOficinas([parsed]);
+          setOficinaAtualState(parsed);
+          restoredFromCache = true;
+        } catch {}
+      }
+      if (!restoredFromCache) {
+        setLoadError("Não conseguimos confirmar os dados da oficina agora. Verifique sua internet e tente novamente.");
+      }
     } finally {
       setLoading(false);
       setInitialized(true);
@@ -154,17 +210,20 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
     if (!user) return { error: new Error("Usuário não autenticado") };
 
     try {
-      const { data: newOficina, error } = await supabase
-        .from("oficinas")
-        .insert({
-          user_id: user.id,
-          nome: data.nome,
-          telefone: data.telefone || null,
-          endereco: data.endereco || null,
-          tipo: data.tipo || "ambos",
-        })
-        .select()
-        .single();
+      const { data: newOficina, error } = await withTimeout(
+        supabase
+          .from("oficinas")
+          .insert({
+            user_id: user.id,
+            nome: data.nome,
+            telefone: data.telefone || null,
+            endereco: data.endereco || null,
+            tipo: data.tipo || "ambos",
+          })
+          .select()
+          .single(),
+        "create_oficina"
+      );
 
       if (error) throw error;
 
@@ -198,6 +257,7 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
     if (!user && isPublicRoute) {
       setOficinas([]);
       setOficinaAtualState(null);
+      setLoadError(null);
       setLoading(false);
       setInitialized(true);
       return;
@@ -215,6 +275,7 @@ export function OficinaProvider({ children }: { children: ReactNode }) {
         setOficinaAtual,
         loading,
         initialized,
+        loadError,
         refetch: fetchOficinas,
         createOficina,
       }}

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { useOficina } from "@/contexts/OficinaContext";
 import { toast } from "sonner";
 import { humanizeError } from "@/lib/errorHandling";
@@ -179,7 +180,7 @@ export function useItensOS(ordemServicoId: string | undefined) {
       // ARQUITETURA ATÔMICA: Usa RPC server-side para garantir que
       // restauração de estoque + exclusão + recálculo de totais
       // aconteçam em uma única transação
-      const { data, error } = await supabase.rpc("deletar_item_os_atomic" as any, {
+      const { data, error } = await rpcWithRetry("deletar_item_os_atomic", {
         p_item_id: id,
         p_oficina_id: oficinaAtual.id,
       });

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { useOficina } from "@/contexts/OficinaContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
@@ -235,7 +236,7 @@ export function useEstoque() {
 
       // ARQUITETURA ATÔMICA: Exclusão via RPC server-side
       // Verifica vínculos com OS/orçamentos ativos + deleta movimentações + item em transação única
-      const { data, error } = await supabase.rpc("atomic_delete_estoque" as any, {
+      const { data, error } = await rpcWithRetry("atomic_delete_estoque", {
         p_estoque_id: id,
         p_oficina_id: oficinaAtual.id,
       });

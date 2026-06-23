@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -169,8 +170,8 @@ export default function Orcamentos() {
       // ARQUITETURA ATÔMICA: tudo em uma única transação PostgreSQL.
       // RPC faz lock (FOR UPDATE) + valida status + cria OS + copia itens + marca convertido.
       // Em qualquer falha, rollback automático — nada de OS órfã.
-      const { data: rpcResult, error: rpcError } = await supabase.rpc(
-        'converter_orcamento_em_os' as any,
+      const { data: rpcResult, error: rpcError } = await rpcWithRetry(
+        'converter_orcamento_em_os',
         {
           p_orcamento_id: orcamento.id,
           p_oficina_id: oficinaAtual.id,

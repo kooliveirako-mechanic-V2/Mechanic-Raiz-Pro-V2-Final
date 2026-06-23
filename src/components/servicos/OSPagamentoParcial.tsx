@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,7 +76,7 @@ export function OSPagamentoParcial({ ordemServicoId, valorTotalOS }: Props) {
       const formaNome = formaId
         ? (formasPagamento.find((f) => f.id === formaId)?.nome || null)
         : "Dinheiro";
-      const { data, error } = await supabase.rpc("registrar_sinal_os" as any, {
+      const { data, error } = await rpcWithRetry("registrar_sinal_os", {
         p_os_id: ordemServicoId,
         p_valor: v,
         p_forma_pagamento_id: formaId || null,

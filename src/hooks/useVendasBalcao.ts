@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { useOficina } from "@/contexts/OficinaContext";
 import { toast } from "sonner";
 import { humanizeError, logBusinessEvent } from "@/lib/errorHandling";
@@ -78,7 +79,7 @@ export function useVendasBalcao() {
         custo_unitario: it.custo_unitario ?? 0,
       }));
 
-      const { data, error } = await supabase.rpc("criar_venda_balcao" as any, {
+      const { data, error } = await rpcWithRetry("criar_venda_balcao", {
         p_oficina_id: oficinaAtual.id,
         p_itens: itensPayload,
         p_forma_pagamento: input.forma_pagamento || "Dinheiro",

@@ -14,6 +14,54 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const AUTH_TIMEOUT_MS = 15000;
+
+function withTimeout<T>(promise: PromiseLike<T>, label: string, ms = AUTH_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      console.warn(`[Auth] Timeout após ${ms}ms: ${label}`);
+      reject(new Error("Tempo esgotado ao conectar. Verifique sua internet e tente novamente."));
+    }, ms);
+
+    Promise.resolve(promise).then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value as T);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
+function getCachedSessionFromStorage(): Session | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    for (const key of Object.keys(window.localStorage)) {
+      if (!key.startsWith("sb-") || !key.endsWith("-auth-token")) continue;
+
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw);
+      const candidate = parsed?.currentSession || parsed?.session || parsed;
+      if (!candidate?.access_token || !candidate?.user?.id) continue;
+
+      const expiresAt = Number(candidate.expires_at || 0);
+      if (expiresAt && expiresAt * 1000 < Date.now()) continue;
+
+      return candidate as Session;
+    }
+  } catch (error) {
+    console.warn("[Auth] Falha ao ler sessão em cache:", error);
+  }
+
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -21,10 +69,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const initializedRef = React.useRef(false);
 
   useEffect(() => {
+    let mounted = true;
+    let startupReleased = false;
+
+    const releaseStartupLoading = (reason: string) => {
+      if (!mounted || startupReleased) return;
+      startupReleased = true;
+      const cachedSession = getCachedSessionFromStorage();
+      if (cachedSession) {
+        setSession(cachedSession);
+        setUser(cachedSession.user ?? null);
+      }
+      initializedRef.current = true;
+      setLoading(false);
+      console.warn(`[Auth] Inicialização liberada: ${reason}`);
+    };
+
     // Set up auth state listener BEFORE checking session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, currentSession) => {
         if (!initializedRef.current) return;
+        if (!mounted) return;
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         setLoading(false);
@@ -41,37 +106,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // Check for existing session - this is the source of truth on startup
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      setSession(existingSession);
-      setUser(existingSession?.user ?? null);
-      initializedRef.current = true;
-      setLoading(false);
-    });
+    const startupTimer = window.setTimeout(() => {
+      releaseStartupLoading("timeout_getSession");
+    }, AUTH_TIMEOUT_MS);
 
-    return () => subscription.unsubscribe();
+    supabase.auth.getSession().then(
+      ({ data: { session: existingSession } }) => {
+        if (!mounted) return;
+        window.clearTimeout(startupTimer);
+        startupReleased = true;
+        setSession(existingSession);
+        setUser(existingSession?.user ?? null);
+        initializedRef.current = true;
+        setLoading(false);
+      },
+      (error) => {
+        if (!mounted) return;
+        window.clearTimeout(startupTimer);
+        console.error("[Auth] Erro ao recuperar sessão inicial:", error);
+        releaseStartupLoading("erro_getSession");
+      }
+    );
+
+    return () => {
+      mounted = false;
+      window.clearTimeout(startupTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email,
+          password,
+        }),
+        "signInWithPassword"
+      );
+      return { error };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
   const signUp = async (email: string, password: string, nome: string, metadata?: Record<string, string>) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: {
-          nome,
-          ...metadata,
-        },
-      },
-    });
-    return { error, session: data?.session ?? null };
+    try {
+      const { data, error } = await withTimeout(
+        supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: {
+              nome,
+              ...metadata,
+            },
+          },
+        }),
+        "signUp"
+      );
+      return { error, session: data?.session ?? null };
+    } catch (error) {
+      return { error: error as Error, session: null };
+    }
   };
 
   const signOut = async () => {

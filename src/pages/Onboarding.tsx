@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Wrench, Building2, Phone, MapPin, Car, Bike, Loader2, Zap, Sparkles, Shield, Clock } from "lucide-react";
+import { Wrench, Building2, Phone, MapPin, Car, Bike, Loader2, Zap, Sparkles, Shield, Clock, AlertTriangle, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { trackSignupCompleted } from "@/lib/pixelEvents";
 import { trackFunnelEvent } from "@/lib/funnelTracking";
@@ -24,7 +24,7 @@ const TIPO_PLANO_MAP: Record<string, { plano: string; preco: string }> = {
 export default function Onboarding() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const { oficinas, loading: oficinaLoading, initialized, createOficina } = useOficina();
+  const { oficinas, loading: oficinaLoading, initialized, loadError, refetch, createOficina } = useOficina();
   const [loading, setLoading] = useState(false);
   
   const [nome, setNome] = useState("");
@@ -56,6 +56,22 @@ export default function Onboarding() {
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin text-accent" />
           <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (user && loadError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 text-center shadow-lg">
+          <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-warning" />
+          <h1 className="text-lg font-semibold text-foreground">Conexão instável</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{loadError}</p>
+          <Button className="mt-5 w-full" onClick={() => void refetch()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Tentar de novo
+          </Button>
         </div>
       </div>
     );
