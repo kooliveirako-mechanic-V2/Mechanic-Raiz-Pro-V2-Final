@@ -303,19 +303,31 @@ export default function Servicos() {
     }
   };
 
-  const handleKanbanFinalizar = async (formaPagamentoId: string, formaPagamentoNome: string, numeroParcelas: number) => {
+  const handleKanbanFinalizar = async ({
+    situacao,
+    formaPagamentoId,
+    formaPagamentoNome,
+    numeroParcelas,
+  }: {
+    situacao: "pago_agora" | "pagar_depois" | "sinal_restante_pago" | "sinal_restante_depois";
+    formaPagamentoId: string | null;
+    formaPagamentoNome: string | null;
+    numeroParcelas: number;
+  }) => {
     const ordem = kanbanFinalizarOrdem;
     if (!ordem || !oficinaAtual?.id) return;
 
+    const pagouAgora = situacao === "pago_agora" || situacao === "sinal_restante_pago";
+
     try {
-      // ATOMIC RPC: Everything in a single transaction
       const { data: rpcResult, error: rpcError } = await rpcWithRetry(
         "finalizar_os_atomica",
         {
           p_os_id: ordem.id,
-          p_forma_pagamento: formaPagamentoNome,
-          p_forma_pagamento_id: formaPagamentoId,
-          p_numero_parcelas: numeroParcelas,
+          // Quando "pagar depois", enviamos o marcador explícito 'a_receber' para a RPC.
+          p_forma_pagamento: pagouAgora ? formaPagamentoNome : "a_receber",
+          p_forma_pagamento_id: pagouAgora ? formaPagamentoId : null,
+          p_numero_parcelas: pagouAgora ? numeroParcelas : 1,
         }
       );
 
@@ -332,7 +344,6 @@ export default function Servicos() {
         return;
       }
 
-      // Invalidate all relevant caches
       queryClient.invalidateQueries({ queryKey: ["ordens_servico"] });
       queryClient.invalidateQueries({ queryKey: ["ordens_servico_count"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -343,12 +354,17 @@ export default function Servicos() {
       setKanbanFinalizarOpen(false);
       setOrdemFinalizada({ ...ordem, status: "finalizado", valor_servico: result.valor_total } as OrdemServico);
       setOsFinalizadaOpen(true);
+
+      if (!pagouAgora) {
+        toast.success("OS finalizada", { description: "Pagamento marcado como a receber." });
+      }
     } catch (error) {
       console.error("[Servicos] handleKanbanFinalizar:", error);
       import("@/lib/sentry").then(({ Sentry }) => Sentry.captureException(error, { extra: { osId: ordem.id, context: "handleKanbanFinalizar" } }));
       toast.error("Erro ao finalizar OS");
     }
   };
+
 
   const handleWhatsApp = (e: React.MouseEvent, ordem: OrdemServico) => {
     e.stopPropagation();
@@ -406,7 +422,7 @@ export default function Servicos() {
 
   const handleCopyLink = (e: React.MouseEvent, ordem: OrdemServico) => {
     e.stopPropagation();
-    const url = getPublicOSLink(String(ordem.numero || ordem.id));
+    const url = getPublicOSLink(ordem);
     navigator.clipboard.writeText(url);
     toast.success("Link copiado!", {
       description: "Envie para o cliente acompanhar.",

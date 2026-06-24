@@ -20,6 +20,8 @@ import { parseCurrency } from "@/lib/formatters";
 import { OSPagamentoParcial } from "@/components/servicos/OSPagamentoParcial";
 import { OSSinalInicialBlock, emptySinalInicial, type SinalInicial } from "@/components/servicos/OSSinalInicialBlock";
 import { OSFinalizadaModal } from "@/components/servicos/OSFinalizadaModal";
+import { KanbanFinalizarModal, type SituacaoPagamento } from "@/components/servicos/KanbanFinalizarModal";
+
 import { ResumoFiscalModal } from "@/components/servicos/ResumoFiscalModal";
 import { ServicoRapidoModal } from "@/components/servicos/ServicoRapidoModal";
 import { ParcelasManager } from "@/components/financeiro/ParcelasManager";
@@ -297,6 +299,16 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
 
   const isSubmittingRef = useRef(false);
   const lastSubmitRef = useRef<number>(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const finalizeIntentRef = useRef<{
+    situacao: SituacaoPagamento;
+    formaPagamentoId: string | null;
+    formaPagamentoNome: string | null;
+    numeroParcelas: number;
+  } | null>(null);
+  const [finalizarModalOpen, setFinalizarModalOpen] = useState(false);
+  const [finalizarValorTotal, setFinalizarValorTotal] = useState(0);
+
 
   // ═══════════════════════════════════════════════════════════════
   // SINGLE REDUCER: All form fields in one state object.
@@ -458,15 +470,21 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
       } else {
         totalItensOS = pendingItensTotal;
       }
-      if (valorMaoDeObra + totalItensOS <= 0) {
+      const valorTotalFinalizacao = valorMaoDeObra + totalItensOS;
+      if (valorTotalFinalizacao <= 0) {
         toast.error("⚠️ Preencha o valor do serviço ou adicione itens", { description: "A OS precisa ter pelo menos um valor para ser finalizada.", duration: 6000 });
         return;
       }
-      if (!f.formaPagamento) {
-        toast.error("⚠️ Selecione a forma de pagamento", { description: "Informe como o cliente vai pagar antes de finalizar.", duration: 6000 });
+      // Se ainda não há decisão explícita sobre a situação de pagamento, abrir
+      // o modal de finalização (mesma UX do Kanban). Nada é enviado para o banco
+      // até o usuário escolher "pago agora" ou "vai pagar depois".
+      if (!finalizeIntentRef.current) {
+        setFinalizarValorTotal(valorTotalFinalizacao);
+        setFinalizarModalOpen(true);
         return;
       }
     }
+
 
     isSubmittingRef.current = true;
     lastSubmitRef.current = now;
@@ -527,18 +545,29 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
           const dataWithoutFinalizado = { ...data, status: statusParaSalvar as StatusOS };
           await updateOrdem.mutateAsync({ id: ordem.id, ...dataWithoutFinalizado });
 
-          const formaPagamentoId = f.formaPagamento ? formasPagamentoDB.find((fp) => fp.nome === f.formaPagamento)?.id || null : null;
+          // Decisão de pagamento vem do modal de finalização (KanbanFinalizarModal).
+          // Se o usuário escolheu "pago agora" -> forma real; se "pagar depois" -> 'a_receber'.
+          const intent = finalizeIntentRef.current;
+          const pagouAgora =
+            intent?.situacao === "pago_agora" || intent?.situacao === "sinal_restante_pago";
+          const formaPagamentoId = pagouAgora ? intent?.formaPagamentoId ?? null : null;
+          const formaPagamentoParaRpc = pagouAgora
+            ? intent?.formaPagamentoNome ?? null
+            : "a_receber";
+          const numeroParcelasFinal = pagouAgora ? intent?.numeroParcelas ?? 1 : 1;
 
           activeRpc = "finalizar_os_atomica";
           rpcPayload = {
             p_os_id: ordem.id,
-            p_forma_pagamento: f.formaPagamento || null,
+            p_forma_pagamento: formaPagamentoParaRpc,
             p_forma_pagamento_id: formaPagamentoId,
-            p_numero_parcelas: f.numeroParcelas,
+            p_numero_parcelas: numeroParcelasFinal,
             p_fotos_saida: f.fotosSaida.length > 0 ? f.fotosSaida : null,
+
             p_observacoes_conclusao: f.observacoesConclusao || null,
             p_valor_mao_obra: parseCurrency(f.valorServico),
           };
+
 
           const { data: rpcResult, error: rpcError } = await rpcWithRetry(
             "finalizar_os_atomica",
@@ -598,7 +627,22 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
           toast.success("OS atualizada!");
         }
       } else {
-        const formaPagamentoId = f.formaPagamento ? formasPagamentoDB.find(fp => fp.nome === f.formaPagamento)?.id || null : null;
+        // Quando criando uma OS já como "finalizada", a decisão de pagamento
+        // vem do modal de finalização (situação + forma escolhida pelo usuário).
+        // Para status "pendente/em_andamento", segue o comportamento padrão (sem forma).
+        const createIntent = finalizeIntentRef.current;
+        const createPagouAgora =
+          createIntent?.situacao === "pago_agora" || createIntent?.situacao === "sinal_restante_pago";
+        const formaPagamentoId = createIntent
+          ? (createPagouAgora ? createIntent.formaPagamentoId ?? null : null)
+          : (f.formaPagamento ? formasPagamentoDB.find(fp => fp.nome === f.formaPagamento)?.id || null : null);
+        const formaPagamentoNomeParaRpc = createIntent
+          ? (createPagouAgora ? createIntent.formaPagamentoNome ?? null : "a_receber")
+          : (f.formaPagamento || null);
+        const numeroParcelasCreate = createIntent
+          ? (createPagouAgora ? createIntent.numeroParcelas ?? 1 : 1)
+          : f.numeroParcelas;
+
 
         const servicosItemizados = f.tiposServicoSelecionados
           .map((tipo) => {
@@ -636,9 +680,10 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
           p_status: f.status,
           p_valor_mao_de_obra: globalMaoDeObra,
           p_custo_servico: parseFloat(f.custoServico) || 0,
-          p_forma_pagamento: f.formaPagamento || null,
+          p_forma_pagamento: formaPagamentoNomeParaRpc,
           p_forma_pagamento_id: formaPagamentoId,
-          p_numero_parcelas: f.numeroParcelas,
+          p_numero_parcelas: numeroParcelasCreate,
+
           p_tem_garantia: f.temGarantia,
           p_dias_garantia: f.temGarantia ? parseInt(f.diasGarantia) : 0,
           p_observacoes: f.observacoes || null,
@@ -755,8 +800,12 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
       });
     } finally {
       isSubmittingRef.current = false;
+      // Limpa a intenção de finalização após o submit (sucesso ou erro), para que
+      // uma próxima tentativa exija nova confirmação explícita do usuário.
+      finalizeIntentRef.current = null;
       setLoading(false);
     }
+
 
   };
 
@@ -772,7 +821,7 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
 
   const handleCopyLink = () => {
     if (!ordem) return;
-    const url = getPublicOSLink(ordem.numero || ordem.id);
+    const url = getPublicOSLink(ordem);
     navigator.clipboard.writeText(url);
     toast.success("Link da OS copiado!", { description: "Envie para o cliente acompanhar o serviço" });
   };
@@ -784,8 +833,33 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
     onOpenChange(false);
   };
 
+  // Modal de finalização (mesma UX do Kanban) reutilizado em mobile e desktop.
+  const ordemParaFinalizar = (ordem ?? ({
+    id: "novo",
+    cliente: { nome: "" },
+    veiculo: { marca: "", modelo: "" },
+    forma_pagamento: f.formaPagamento || "",
+    valor_sinal: parseFloat((sinalInicial.valor || "0").replace(",", ".")) || 0,
+  } as unknown)) as OrdemServico;
+
+  const finalizarModalNode = (
+    <KanbanFinalizarModal
+      open={finalizarModalOpen}
+      onOpenChange={setFinalizarModalOpen}
+      ordem={ordemParaFinalizar}
+      valorTotal={finalizarValorTotal}
+      onConfirm={async (params) => {
+        finalizeIntentRef.current = params;
+        setFinalizarModalOpen(false);
+        // Reenvia o form com a decisão de pagamento já registrada.
+        setTimeout(() => formRef.current?.requestSubmit(), 0);
+      }}
+    />
+  );
+
+
   const FormContent = (
-    <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-6 px-1 pb-32 sm:pb-24 overflow-x-hidden min-w-0">
+    <form ref={formRef} onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-6 px-1 pb-32 sm:pb-24 overflow-x-hidden min-w-0">
 
       {/* SEÇÃO 1: Cliente / Veículo */}
       <OSFormClienteSection
@@ -1039,6 +1113,8 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
         </Drawer>
         {ordem && <ResumoFiscalModal open={resumoFiscalOpen} onOpenChange={setResumoFiscalOpen} ordem={ordem} />}
         <OSFinalizadaModal open={osFinalizadaOpen} onOpenChange={setOsFinalizadaOpen} ordem={savedOrdem} oficinaNome={oficinaAtual?.nome} oficinaTelefone={oficinaAtual?.telefone} onEdit={() => { if (savedOrdem) setOsFinalizadaOpen(false); }} />
+        {finalizarModalNode}
+
         <ServicoRapidoModal
           open={f.servicoRapidoOpen}
           onOpenChange={(v) => {
@@ -1093,6 +1169,8 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
       </Dialog>
       {ordem && <ResumoFiscalModal open={resumoFiscalOpen} onOpenChange={setResumoFiscalOpen} ordem={ordem} />}
       <OSFinalizadaModal open={osFinalizadaOpen} onOpenChange={setOsFinalizadaOpen} ordem={savedOrdem} oficinaNome={oficinaAtual?.nome} oficinaTelefone={oficinaAtual?.telefone} onEdit={() => { if (savedOrdem) setOsFinalizadaOpen(false); }} />
+      {finalizarModalNode}
+
       <ServicoRapidoModal
         open={f.servicoRapidoOpen}
         onOpenChange={(v) => {
