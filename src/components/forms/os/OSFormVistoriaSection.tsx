@@ -37,6 +37,8 @@ interface Props {
   setShowAssinatura: (v: boolean) => void;
   assinaturaClienteUrl: string | null;
   setAssinaturaClienteUrl: (v: string | null) => void;
+  assinaturaClientePath?: string | null;
+  setAssinaturaClientePath?: (v: string | null) => void;
 }
 
 export function OSFormVistoriaSection(props: Props) {
@@ -122,7 +124,7 @@ export function OSFormVistoriaSection(props: Props) {
           onClick={() => props.setShowAssinatura(!props.showAssinatura)}
         >
           <PenTool className="w-5 h-5" />
-          {props.assinaturaClienteUrl ? "✓ Assinatura Coletada" : "Coletar Assinatura do Cliente"}
+          {(props.assinaturaClienteUrl || props.assinaturaClientePath) ? "✓ Assinatura Coletada" : "Coletar Assinatura do Cliente"}
         </Button>
 
         {props.showAssinatura && (
@@ -130,6 +132,8 @@ export function OSFormVistoriaSection(props: Props) {
             <SignaturePad
               assinaturaUrl={props.assinaturaClienteUrl}
               onAssinaturaChange={props.setAssinaturaClienteUrl}
+              assinaturaPath={props.assinaturaClientePath ?? null}
+              onPathChange={props.setAssinaturaClientePath}
               ordemId={props.ordemId}
             />
           </div>

@@ -6,28 +6,54 @@ import { PenTool, Trash2, Check, ChevronDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSignedSignatureUrl } from "@/hooks/useSignedSignatureUrl";
 
 interface SignaturePadProps {
+  /** URL legada (assinatura_cliente_url) — usada como fallback de exibição. */
   assinaturaUrl: string | null;
+  /** Setter da URL legada — usado para limpar/preservar compatibilidade. */
   onAssinaturaChange: (url: string | null) => void;
+  /** Path novo (assinatura_cliente_path) — preferido para exibição via signed URL. */
+  assinaturaPath?: string | null;
+  /** Setter do novo path. */
+  onPathChange?: (path: string | null) => void;
   ordemId?: string;
   disabled?: boolean;
 }
 
-export function SignaturePad({ assinaturaUrl, onAssinaturaChange, ordemId, disabled }: SignaturePadProps) {
+export function SignaturePad({
+  assinaturaUrl,
+  onAssinaturaChange,
+  assinaturaPath,
+  onPathChange,
+  ordemId,
+  disabled,
+}: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
 
-  // Auto-open if already has signature
+  // Signed URL para o path (preferida sobre a URL legada)
+  const { url: signedUrl } = useSignedSignatureUrl(assinaturaPath ?? null);
+
+  // Fonte de exibição: 1) preview local recém-salvo, 2) signed URL do path, 3) URL legada
+  const displayUrl = localPreviewUrl || signedUrl || assinaturaUrl;
+
+  // Auto-open se já há assinatura
   useEffect(() => {
-    if (assinaturaUrl) {
-      setIsOpen(true);
-    }
-  }, [assinaturaUrl]);
+    if (assinaturaUrl || assinaturaPath) setIsOpen(true);
+  }, [assinaturaUrl, assinaturaPath]);
+
+  // Revoga blob URL local ao desmontar / trocar
+  useEffect(() => {
+    return () => {
+      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+    };
+  }, [localPreviewUrl]);
 
   const getCanvasCoords = useCallback((e: React.TouchEvent | React.MouseEvent) => {
     const canvas = canvasRef.current;
@@ -87,11 +113,15 @@ export function SignaturePad({ assinaturaUrl, onAssinaturaChange, ordemId, disab
   const clearCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
-    if (!ctx || !canvas) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasSignature(false);
+    if (localPreviewUrl) {
+      URL.revokeObjectURL(localPreviewUrl);
+      setLocalPreviewUrl(null);
+    }
     onAssinaturaChange(null);
-  }, [onAssinaturaChange]);
+    onPathChange?.(null);
+  }, [onAssinaturaChange, onPathChange, localPreviewUrl]);
 
   const saveSignature = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -115,21 +145,32 @@ export function SignaturePad({ assinaturaUrl, onAssinaturaChange, ordemId, disab
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from("os-assinaturas")
-        .getPublicUrl(fileName);
+      // Preview imediato via blob local — independente de bucket público
+      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+      const blobUrl = URL.createObjectURL(blob);
+      setLocalPreviewUrl(blobUrl);
 
-      if (urlData) {
-        onAssinaturaChange(urlData.publicUrl);
-        toast.success("Assinatura salva!");
+      // Propaga novo path (preferido)
+      onPathChange?.(fileName);
+
+      // Mantém URL legada por compatibilidade quando o handler existir.
+      // Para registros novos não emitimos URL pública: o consumidor decide
+      // como persistir. Aqui apenas sinalizamos que há assinatura.
+      if (!assinaturaUrl && onPathChange) {
+        // Caso novo: usa apenas path. Não gera URL pública.
+        onAssinaturaChange(null);
       }
+
+      toast.success("Assinatura salva!");
     } catch (error) {
       console.error("Erro ao salvar assinatura:", error);
       toast.error("Erro ao salvar assinatura");
     } finally {
       setIsSaving(false);
     }
-  }, [hasSignature, ordemId, onAssinaturaChange]);
+  }, [hasSignature, ordemId, onAssinaturaChange, onPathChange, assinaturaUrl, localPreviewUrl]);
+
+  const hasAnySignature = !!displayUrl;
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -139,16 +180,16 @@ export function SignaturePad({ assinaturaUrl, onAssinaturaChange, ordemId, disab
           variant="outline"
           className={cn(
             "w-full h-12 justify-between gap-2",
-            assinaturaUrl && "border-success/50 bg-success/5"
+            hasAnySignature && "border-success/50 bg-success/5"
           )}
         >
           <div className="flex items-center gap-2">
             <PenTool className={cn(
               "w-5 h-5",
-              assinaturaUrl ? "text-success" : "text-muted-foreground"
+              hasAnySignature ? "text-success" : "text-muted-foreground"
             )} />
             <span className="font-medium">Assinatura do Cliente</span>
-            {assinaturaUrl && (
+            {hasAnySignature && (
               <span className="text-xs text-success bg-success/10 px-2 py-0.5 rounded-full">
                 ✓ Assinado
               </span>
@@ -167,12 +208,12 @@ export function SignaturePad({ assinaturaUrl, onAssinaturaChange, ordemId, disab
             Peça ao cliente para assinar abaixo com o dedo ou mouse
           </Label>
 
-          {/* Show saved signature image */}
-          {assinaturaUrl && !hasSignature && (
+          {/* Mostra assinatura salva (preview local, signed URL ou URL legada) */}
+          {displayUrl && !hasSignature && (
             <div className="space-y-2">
               <div className="border border-success/30 rounded-xl overflow-hidden bg-white">
                 <img
-                  src={assinaturaUrl}
+                  src={displayUrl}
                   alt="Assinatura do cliente"
                   className="w-full h-[150px] object-contain"
                 />
@@ -194,8 +235,8 @@ export function SignaturePad({ assinaturaUrl, onAssinaturaChange, ordemId, disab
             </div>
           )}
 
-          {/* Canvas for drawing */}
-          {(!assinaturaUrl || hasSignature) && (
+          {/* Canvas para desenhar */}
+          {(!displayUrl || hasSignature) && (
             <>
               <div className="border-2 border-dashed border-border rounded-xl overflow-hidden bg-white touch-none">
                 <canvas

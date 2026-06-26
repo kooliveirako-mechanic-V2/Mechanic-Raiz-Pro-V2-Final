@@ -169,6 +169,7 @@ export interface OrdemServicoInput {
   tempo_diagnostico_minutos?: number;
   // Assinatura digital
   assinatura_cliente_url?: string;
+  assinatura_cliente_path?: string | null;
 }
 
 const PAGE_SIZE = 20;
@@ -418,6 +419,7 @@ export function useOrdensServico() {
           if (input.modulos_testados !== undefined) updateData.modulos_testados = input.modulos_testados || [];
           if (input.tempo_diagnostico_minutos !== undefined) updateData.tempo_diagnostico_minutos = input.tempo_diagnostico_minutos || 0;
           if (input.assinatura_cliente_url !== undefined) updateData.assinatura_cliente_url = input.assinatura_cliente_url || null;
+          if (input.assinatura_cliente_path !== undefined) updateData.assinatura_cliente_path = input.assinatura_cliente_path || null;
 
           const { data, error } = await supabase
             .from("ordens_servico")

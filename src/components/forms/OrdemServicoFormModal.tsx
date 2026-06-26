@@ -80,6 +80,7 @@ interface OSFormState {
   checklistLuzes: boolean;
   fotosEntrada: string[];
   assinaturaClienteUrl: string | null;
+  assinaturaClientePath: string | null;
   fotosSaida: string[];
   observacoesConclusao: string;
   electricDVIData: ElectricDVIData;
@@ -139,6 +140,7 @@ function createDefaultState(opts?: { initialDate?: string; initialClienteId?: st
     checklistLuzes: false,
     fotosEntrada: [],
     assinaturaClienteUrl: null,
+    assinaturaClientePath: null,
     fotosSaida: [],
     observacoesConclusao: "",
     electricDVIData: createEmptyElectricDVIData(),
@@ -187,6 +189,7 @@ function buildStateFromOrdem(ordemData: OrdemServico): OSFormState {
     checklistLuzes: ordemAny.checklist_luzes || false,
     fotosEntrada: ordemAny.fotos_entrada || [],
     assinaturaClienteUrl: ordemAny.assinatura_cliente_url || null,
+    assinaturaClientePath: ordemAny.assinatura_cliente_path || null,
     fotosSaida: ordemAny.fotos_saida || [],
     observacoesConclusao: ordemAny.observacoes_conclusao || "",
     electricDVIData: {
@@ -521,6 +524,7 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
       fotos_saida: f.fotosSaida,
       observacoes_conclusao: f.observacoesConclusao || undefined,
       assinatura_cliente_url: f.assinaturaClienteUrl || undefined,
+      assinatura_cliente_path: f.assinaturaClientePath ?? undefined,
       data_conclusao: f.status === "finalizado" ? format(new Date(), "yyyy-MM-dd") : undefined,
       checklist_voltagem_bateria: f.electricDVIData.voltagemBateria || undefined,
       checklist_carga_bateria: f.electricDVIData.cargaBateria || undefined,
@@ -717,6 +721,26 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
           // Isso pode ocorrer se o trigger/RPC tentar forçar o status 'finalizado' direto.
           throw new Error("Falha ao criar OS. Verifique se o veículo possui quilometragem válida ou se há campos obrigatórios faltando.");
         }
+
+        // B2 — Persistir assinatura_cliente_path pós-criação via UPDATE escopado.
+        // Não toca em criar_os_completa. Falha aqui não corrompe a OS.
+        if (f.assinaturaClientePath) {
+          try {
+            const { error: upErr } = await supabase
+              .from("ordens_servico")
+              .update({ assinatura_cliente_path: f.assinaturaClientePath })
+              .eq("id", result.os_id);
+            if (upErr) {
+              console.warn("[OS] Falha ao salvar assinatura_cliente_path pós-criação:", upErr.message);
+              toast.warning("OS criada, mas a assinatura não foi vinculada", {
+                description: "Abra a OS e salve a assinatura novamente.",
+              });
+            }
+          } catch (e) {
+            console.warn("[OS] Erro inesperado ao salvar assinatura_cliente_path:", e);
+          }
+        }
+
 
         // Registrar sinal inicial (se informado) — após OS criada
         const valorSinalNum = parseFloat(sinalInicial.valor.replace(",", ".")) || 0;
@@ -1015,6 +1039,8 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
         setShowAssinatura={(v) => patchField("showAssinatura", v)}
         assinaturaClienteUrl={f.assinaturaClienteUrl}
         setAssinaturaClienteUrl={(v) => patchField("assinaturaClienteUrl", v)}
+        assinaturaClientePath={f.assinaturaClientePath}
+        setAssinaturaClientePath={(v) => patchField("assinaturaClientePath", v)}
       />
 
       {/* Parcelamento */}
