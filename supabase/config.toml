@@ -4,7 +4,10 @@ project_id = "cuhkkoqqeguascdsvtky"
 verify_jwt = false
 
 [functions.admin-set-password]
-verify_jwt = false
+verify_jwt = true
 
 [functions.capi-proxy]
 verify_jwt = false
+
+[functions.verify-payment-status]
+verify_jwt = true

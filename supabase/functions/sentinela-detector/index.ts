@@ -11,7 +11,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const ALERT_EMAIL = "ko.oliveira2016@gmail.com";
+// Fase 2.1: e-mail de alerta vem APENAS do secret SENTINELA_ALERT_EMAIL.
+// Sem fallback hardcoded: se o secret não estiver definido, o detector
+// continua rodando (capturando bugs, gravando snapshot), mas NÃO envia
+// e-mail — apenas registra console.warn. Configure o secret antes do deploy.
+const ALERT_EMAIL = Deno.env.get("SENTINELA_ALERT_EMAIL") ?? "";
+if (!ALERT_EMAIL) {
+  console.warn("[sentinela] SENTINELA_ALERT_EMAIL ausente: alerta por e-mail não será enviado");
+}
 const COOLDOWN_MINUTES = 30;
 
 const corsHeaders = {
@@ -32,6 +39,10 @@ interface AlertItem {
 }
 
 async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+  if (!to) {
+    console.warn("[sentinela] sem destinatário (SENTINELA_ALERT_EMAIL) — alerta não enviado:", subject);
+    return false;
+  }
   if (!RESEND_API_KEY) {
     console.error("[sentinela] RESEND_API_KEY ausente — pulando envio");
     return false;
@@ -127,6 +138,16 @@ async function checkSpikes(): Promise<AlertItem[]> {
   return alerts;
 }
 
+/** Normaliza mensagem para agrupamento: minúsculas, sem números/UUIDs/aspas. */
+function normalizeMessage(msg: string): string {
+  return (msg || "")
+    .toLowerCase()
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "<uuid>")
+    .replace(/\d+/g, "<n>")
+    .replace(/['"`]/g, "")
+    .slice(0, 120);
+}
+
 async function checkFatalsAndFinancial(): Promise<AlertItem[]> {
   const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const { data: logs } = await admin
@@ -137,22 +158,43 @@ async function checkFatalsAndFinancial(): Promise<AlertItem[]> {
     .limit(50);
 
   if (!logs) return [];
-  const alerts: AlertItem[] = [];
+
+  // Agrupa por (tipo, rpc, oficina, mensagem normalizada). Sem l.id => sem spam.
+  const groups = new Map<string, { type: "fatal" | "fin"; rpc: string; oficina: string; msg: string; count: number; firstId: string }>();
   for (const l of logs) {
     const nd = (l.new_data as { rpc?: string; severity?: string; message?: string } | null) ?? {};
     const isFatal = nd.severity === "fatal";
     const isFinancial = /financ|parcela|pagamento|venda_balcao/i.test(nd.rpc ?? "");
     if (!isFatal && !isFinancial) continue;
+    const type: "fatal" | "fin" = isFatal ? "fatal" : "fin";
+    const rpc = nd.rpc ?? "?";
+    const oficina = (l.oficina_id as string | null) ?? "?";
+    const msg = normalizeMessage(nd.message ?? "");
+    const key = `${type}:${rpc}:${oficina}:${msg}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      groups.set(key, { type, rpc, oficina, msg, count: 1, firstId: l.id as string });
+    }
+  }
+
+  const alerts: AlertItem[] = [];
+  for (const g of groups.values()) {
     alerts.push({
-      alert_type: isFatal ? "fatal_error" : "financial_error",
-      alert_key: `${isFatal ? "fatal" : "fin"}:${nd.rpc ?? "?"}:${l.id}`,
-      subject: isFatal ? `Erro FATAL em ${nd.rpc}` : `Erro em RPC financeira (${nd.rpc})`,
+      alert_type: g.type === "fatal" ? "fatal_error" : "financial_error",
+      alert_key: `${g.type}:${g.rpc}:${g.oficina}:${g.msg}`,
+      subject:
+        g.type === "fatal"
+          ? `Erro FATAL em ${g.rpc} (${g.count}x)`
+          : `Erro em RPC financeira (${g.rpc}, ${g.count}x)`,
       body_html: htmlWrap(
-        isFatal ? "Erro FATAL" : "Erro em RPC financeira",
-        `<p><b>RPC:</b> ${nd.rpc}<br/><b>Oficina:</b> ${l.oficina_id ?? "?"}<br/>
-         <b>Mensagem:</b> ${nd.message ?? "—"}</p>`
+        g.type === "fatal" ? "Erro FATAL" : "Erro em RPC financeira",
+        `<p><b>RPC:</b> ${g.rpc}<br/><b>Oficina:</b> ${g.oficina}<br/>
+         <b>Ocorrências (10min):</b> ${g.count}<br/>
+         <b>Mensagem:</b> ${g.msg || "—"}</p>`
       ),
-      payload: { log_id: l.id, rpc: nd.rpc, severity: nd.severity },
+      payload: { rpc: g.rpc, oficina: g.oficina, count: g.count, first_log_id: g.firstId },
     });
   }
   return alerts;
@@ -160,27 +202,27 @@ async function checkFatalsAndFinancial(): Promise<AlertItem[]> {
 
 async function checkSilentBugs(): Promise<AlertItem[]> {
   const { data: det, error } = await admin.rpc("get_sentinela_detectores_admin");
-  // Fallback: chamamos via SQL bruto se RPC admin não existir
-  let detectores: Array<{ id: string; label: string; count: number; severidade: string }> = [];
-  if (!error && det && (det as { detectores?: unknown[] }).detectores) {
-    detectores = (det as { detectores: Array<{ id: string; label: string; count: number; severidade: string }> }).detectores;
-  } else {
-    // Faz cada query manualmente (service-role ignora RLS)
-    const [osSemItem, estoqueNeg, parcelaSemFin, osSemParcela] = await Promise.all([
-      admin.from("ordens_servico").select("id", { count: "exact", head: true }).eq("status", "finalizada"),
-      admin.from("estoque").select("id", { count: "exact", head: true }).lt("quantidade", 0),
-      admin.from("parcelas_pagamento").select("id", { count: "exact", head: true }).eq("status", "pago"),
-      admin.from("ordens_servico").select("id", { count: "exact", head: true }).eq("status", "finalizada").gt("valor_servico", 0),
-    ]);
-    // Aproximação: contagens brutas (não cruzam com NOT EXISTS). Mantemos como sinal.
-    detectores = [
-      { id: "estoque_negativo", label: "Estoque negativo", count: estoqueNeg.count ?? 0, severidade: "red" },
+
+  // Se a RPC admin falhar, NÃO inventamos contagem — alertamos falha do detector.
+  if (error || !det || !(det as { detectores?: unknown[] }).detectores) {
+    console.error("[sentinela] get_sentinela_detectores_admin indisponível", error);
+    return [
+      {
+        alert_type: "detector_failure",
+        alert_key: `detector_failure:get_sentinela_detectores_admin`,
+        subject: "Detector indisponível: get_sentinela_detectores_admin",
+        body_html: htmlWrap(
+          "Detector indisponível",
+          `<p>A RPC <b>get_sentinela_detectores_admin</b> falhou ao executar.</p>
+           <p><b>Erro:</b> ${error?.message ?? "sem detalhes"}</p>
+           <p>Bugs silenciosos NÃO foram verificados neste ciclo. Investigue a RPC.</p>`
+        ),
+        payload: { error: error?.message ?? null },
+      },
     ];
-    // Detectores que exigem NOT EXISTS são melhor servidos pela RPC; se ela falhou, logamos.
-    console.warn("[sentinela] get_sentinela_detectores_admin indisponível — usando fallback parcial", error);
-    void osSemItem; void parcelaSemFin; void osSemParcela;
   }
 
+  const detectores = (det as { detectores: Array<{ id: string; label: string; count: number; severidade: string }> }).detectores;
   const alerts: AlertItem[] = [];
   for (const d of detectores) {
     if (d.count > 0) {

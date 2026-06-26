@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.2'
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts'
 import { createHmac } from "https://deno.land/std@0.224.0/crypto/mod.ts";
+import { decideReversal, isReversal, maskId, type MappedStatus } from "./reversal.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -407,7 +408,9 @@ Deno.serve(async (req) => {
       payer_email: paymentDetails.payer?.email,
       payer_name: [paymentDetails.payer?.first_name, paymentDetails.payer?.last_name].filter(Boolean).join(' ') || null,
       raw_data: paymentDetails,
-      processed_at: mappedStatus === 'approved' ? new Date().toISOString() : null,
+      processed_at: mappedStatus === 'approved'
+        ? new Date().toISOString()
+        : (existingPayment?.processed_at ?? null),
       oficina_id: refData.oficinaId,
       orcamento_id: refData.tipo === 'orcamento' ? refData.orcamentoId : null,
     }
@@ -574,6 +577,84 @@ Deno.serve(async (req) => {
         }
       }
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // CORREÇÃO 4: SUBSCRIPTION REVERSAL (refund / chargeback / cancellation)
+    // Revokes access ONLY when:
+    //   - it's a subscription payment
+    //   - this same mp_payment_id was previously stored as approved+processed
+    //   - and there is no NEWER approved subscription payment for the oficina
+    // ═══════════════════════════════════════════════════════════════════
+    if (
+      refData.tipo === 'subscription' &&
+      refData.oficinaId &&
+      isReversal(mappedStatus as MappedStatus, paymentDetails.status_detail)
+    ) {
+      const wasPreviouslyApproved = !!(
+        existingPayment?.status === 'approved' && existingPayment?.processed_at
+      )
+
+      // Look for a newer approved subscription payment for the same oficina,
+      // excluding this very mp_payment_id. If one exists, the oficina renewed
+      // after this payment — do NOT revoke the current subscription.
+      let hasNewerApprovedSubscriptionPayment = false
+      if (wasPreviouslyApproved) {
+        const thisProcessedAt = existingPayment?.processed_at as string
+        const { data: newer } = await supabase
+          .from('pagamentos')
+          .select('id')
+          .eq('oficina_id', refData.oficinaId)
+          .eq('status', 'approved')
+          .neq('mp_payment_id', paymentId)
+          .gt('processed_at', thisProcessedAt)
+          .limit(1)
+          .maybeSingle()
+        hasNewerApprovedSubscriptionPayment = !!newer
+      }
+
+      const decision = decideReversal({
+        mappedStatus: mappedStatus as MappedStatus,
+        statusDetail: paymentDetails.status_detail,
+        previousStoredStatus: (existingPayment?.status as MappedStatus | undefined) ?? null,
+        wasPreviouslyApproved,
+        hasNewerApprovedSubscriptionPayment,
+      })
+
+      console.log(
+        `🔁 Reversal decision for payment ${maskId(paymentId)} / oficina ${maskId(refData.oficinaId)}: ${decision.action}`
+      )
+
+      if (decision.action === 'cancel_subscription') {
+        const nowIso = new Date().toISOString()
+        const { error: cancelErr } = await supabase
+          .from('subscriptions')
+          .update({ status: 'canceled', canceled_at: nowIso })
+          .eq('oficina_id', refData.oficinaId)
+
+        if (cancelErr) {
+          console.error(`⚠️ Failed to revoke subscription for ${maskId(refData.oficinaId)}: ${cancelErr.message}`)
+        } else {
+          console.log(`✅ Subscription revoked for oficina ${maskId(refData.oficinaId)} (reason: ${decision.reason})`)
+
+          const titulo =
+            decision.reason === 'charged_back'
+              ? '⛔ Assinatura cancelada (chargeback)'
+              : decision.reason === 'refunded'
+                ? '⛔ Assinatura cancelada (estorno)'
+                : '⛔ Assinatura cancelada'
+          await supabase.from('notificacoes').insert({
+            oficina_id: refData.oficinaId,
+            tipo: 'assinatura',
+            titulo,
+            mensagem:
+              'O pagamento da sua assinatura foi revertido. O acesso premium foi suspenso. Realize um novo pagamento para reativar.',
+            referencia_id: result.data?.id,
+            referencia_tipo: 'pagamento',
+          })
+        }
+      }
+    }
+
 
     // ═══════════════════════════════════════════════════════════════════
     // HANDLE FAILED/REJECTED PAYMENTS

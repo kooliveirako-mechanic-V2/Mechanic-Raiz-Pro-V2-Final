@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
+import { resolveSubscription, buildResolvedSubscription } from "./resolver.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -120,7 +121,7 @@ serve(async (req) => {
       );
     }
 
-    let body: PreferenceRequest;
+    let body: PreferenceRequest & { plan_key?: string };
     try {
       body = await req.json();
     } catch {
@@ -138,7 +139,48 @@ serve(async (req) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // SERVER-SIDE PRICE VALIDATION — never trust frontend prices
+    // SUBSCRIPTION SERVER-SIDE CATALOG (Correction 1 / 1.1)
+    // Resolver is a pure module (resolver.ts) and has its own unit tests.
+    // ═══════════════════════════════════════════════════════════════════
+    const paymentType = body.type || 'payment';
+    let resolvedPlanKey: string | null = null;
+
+    if (paymentType === 'subscription') {
+      const resolved = resolveSubscription({
+        plan_key: body.plan_key,
+        plan_type: body.plan_type,
+        metadata: body.metadata as Record<string, unknown> | undefined,
+        items: body.items as Array<{ unit_price?: unknown }>,
+      });
+
+      if (!resolved.ok) {
+        console.error('Subscription rejected', { code: resolved.code, candidateKey: resolved.candidateKey });
+        return new Response(
+          JSON.stringify({ error: resolved.message }),
+          { status: resolved.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Safe divergence log — no PII, no payload, just price comparison.
+      if (resolved.priceDivergent) {
+        console.warn('[mp-create-preference] unit_price divergente ignorado', {
+          plan_key: resolved.planKey,
+          client_unit_price: resolved.clientUnitPrice,
+          catalog_unit_price: resolved.entry.unit_price,
+        });
+      }
+
+      resolvedPlanKey = resolved.planKey;
+      const built = buildResolvedSubscription(resolved, (body.metadata || {}) as Record<string, unknown>);
+      body.items = [built.item];
+      body.plan_type = built.plan_type;
+      body.metadata = built.metadata;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ITEM VALIDATION (after subscription override)
+    // Non-subscription flows still use client prices (out of scope here),
+    // but bounds remain enforced. Subscription items are server-trusted.
     // ═══════════════════════════════════════════════════════════════════
     for (const item of body.items) {
       if (typeof item.unit_price !== 'number' || item.unit_price < 0 || item.unit_price > 100000) {
@@ -175,6 +217,13 @@ serve(async (req) => {
       );
     }
 
+    if (paymentType === 'subscription' && !body.oficina_id) {
+      return new Response(
+        JSON.stringify({ error: 'oficina_id é obrigatório para assinatura' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // AUTHORIZATION: Verify user has access to the oficina
     // ═══════════════════════════════════════════════════════════════════
@@ -196,9 +245,9 @@ serve(async (req) => {
     const origin = 'https://www.mechanicraizpro.com.br';
 
     let externalReference: string;
-    const paymentType = body.type || 'payment';
-    
+
     if (paymentType === 'subscription' && body.oficina_id && body.plan_type) {
+      // shape preserved for webhook + verify-payment-status compatibility
       externalReference = `subscription:${body.oficina_id}:${body.plan_type}`;
     } else if (paymentType === 'orcamento' && body.oficina_id && body.orcamento_id) {
       externalReference = `orcamento:${body.oficina_id}:${body.orcamento_id}`;
@@ -269,6 +318,9 @@ serve(async (req) => {
         oficina_id: body.oficina_id,
         orcamento_id: body.orcamento_id,
         plan_type: body.plan_type,
+        plan_key: resolvedPlanKey ?? undefined,
+        original_plan: (body.metadata as any)?.original_plan,
+        billing_cycle: (body.metadata as any)?.billing_cycle,
       },
       notification_url: `${supabaseUrl}/functions/v1/mercadopago-webhook`,
       payment_methods: {
