@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { MediaThumbnail } from "@/components/ui/media-thumbnail";
+import { resolveFotoUrl } from "@/lib/storage/fotos";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Camera, X, CheckCircle2, Loader2, ImagePlus, ImageIcon } from "lucide-react";
@@ -126,7 +127,7 @@ export function ConclusaoSection({
               {fotosEntrada.slice(0, 4).map((foto, i) => (
                 <img
                   key={i}
-                  src={foto}
+                  src={resolveFotoUrl(foto)}
                   alt={`Antes ${i + 1}`}
                   className="w-full aspect-square object-cover rounded-md"
                 />
@@ -141,7 +142,7 @@ export function ConclusaoSection({
               {fotosSaida.slice(0, 4).map((foto, i) => (
                 <img
                   key={i}
-                  src={foto}
+                  src={resolveFotoUrl(foto)}
                   alt={`Depois ${i + 1}`}
                   className="w-full aspect-square object-cover rounded-md"
                 />
@@ -180,7 +181,7 @@ export function ConclusaoSection({
           {fotosSaida.map((foto, index) => (
             <div key={index} className="relative group aspect-square">
               <MediaThumbnail
-                src={foto}
+                src={resolveFotoUrl(foto)}
                 alt={`Foto conclusão ${index + 1}`}
                 className="rounded-xl border border-success/30"
               />

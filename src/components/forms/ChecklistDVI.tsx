@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { MediaThumbnail } from "@/components/ui/media-thumbnail";
+import { resolveFotoUrl } from "@/lib/storage/fotos";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -602,7 +603,7 @@ export function ChecklistDVI({
               {fotos.map((foto, index) => (
                 <div key={index} className="relative group aspect-square">
                   <MediaThumbnail
-                    src={foto}
+                    src={resolveFotoUrl(foto)}
                     alt={`Foto ${index + 1}`}
                     className="rounded-xl border border-border"
                   />

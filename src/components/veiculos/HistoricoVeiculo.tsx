@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveFotoUrl } from "@/lib/storage/fotos";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/formatters";
 import { ptBR } from "date-fns/locale";
@@ -375,7 +376,7 @@ export function HistoricoVeiculo({ veiculoId, veiculoInfo }: HistoricoVeiculoPro
                             {fotos.map((foto, i) => (
                               <img
                                 key={i}
-                                src={foto}
+                                src={resolveFotoUrl(foto)}
                                 alt={`Foto ${i + 1}`}
                                 className="w-full aspect-square object-cover rounded-md border border-border"
                               />

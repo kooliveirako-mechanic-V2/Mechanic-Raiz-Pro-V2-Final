@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { validateFile, safeFileName } from "@/lib/uploadValidation";
 import { MediaThumbnail } from "@/components/ui/media-thumbnail";
+import { resolveFotoUrl } from "@/lib/storage/fotos";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -961,7 +962,7 @@ export function ElectricDVIWizard({
                 <div key={index} className="relative group aspect-square">
                   {foto ? (
                     <MediaThumbnail
-                      src={foto}
+                      src={resolveFotoUrl(foto)}
                       alt={`Foto ${index + 1}`}
                       className="rounded-lg border"
                     />
