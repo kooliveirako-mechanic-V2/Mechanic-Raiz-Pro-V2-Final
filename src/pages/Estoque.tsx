@@ -9,7 +9,6 @@ import { EstoqueFormModal } from "@/components/forms/EstoqueFormModal";
 import { EstoqueProfitSummary } from "@/components/estoque/EstoqueProfitSummary";
 import { EstoqueQuickActions } from "@/components/estoque/EstoqueQuickActions";
 import { CatalogoServicosTab } from "@/components/estoque/CatalogoServicosTab";
-import { VendaRapidaModal } from "@/components/vendas/VendaRapidaModal";
 import { DraftResumeBanner } from "@/components/DraftResumeBanner";
 import { useOficina } from "@/contexts/OficinaContext";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -291,7 +290,6 @@ export default function Estoque() {
       </div>
       
       <EstoqueFormModal open={modalOpen} onOpenChange={setModalOpen} item={itemEdit} />
-      <VendaRapidaModal open={vendaRapidaOpen} onOpenChange={setVendaRapidaOpen} />
     </MainLayout>
   );
 }

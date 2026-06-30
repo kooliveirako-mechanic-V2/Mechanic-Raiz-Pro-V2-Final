@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcSentinela } from "@/lib/sentinela";
 import { useOficina } from "@/contexts/OficinaContext";
 import { toast } from "sonner";
 
@@ -150,7 +151,7 @@ export function useSolicitacaoActions() {
 
   const aprovar = useMutation({
     mutationFn: async (vars: { solicitacao_id: string; cliente_id?: string; veiculo_id?: string }) => {
-      const { data, error } = await supabase.rpc("aprovar_solicitacao_agendamento" as any, {
+      const { data, error } = await rpcSentinela("aprovar_solicitacao_agendamento", {
         p_solicitacao_id: vars.solicitacao_id,
         p_cliente_id: vars.cliente_id || null,
         p_veiculo_id: vars.veiculo_id || null,
@@ -164,7 +165,7 @@ export function useSolicitacaoActions() {
 
   const recusar = useMutation({
     mutationFn: async (vars: { solicitacao_id: string; motivo?: string }) => {
-      const { data, error } = await supabase.rpc("recusar_solicitacao_agendamento" as any, {
+      const { data, error } = await rpcSentinela("recusar_solicitacao_agendamento", {
         p_solicitacao_id: vars.solicitacao_id,
         p_motivo: vars.motivo || null,
       });
@@ -177,7 +178,7 @@ export function useSolicitacaoActions() {
 
   const sugerir = useMutation({
     mutationFn: async (vars: { solicitacao_id: string; nova_data: string; nova_hora: string }) => {
-      const { data, error } = await supabase.rpc("sugerir_novo_horario_agendamento" as any, {
+      const { data, error } = await rpcSentinela("sugerir_novo_horario_agendamento", {
         p_solicitacao_id: vars.solicitacao_id,
         p_nova_data: vars.nova_data,
         p_nova_hora: vars.nova_hora,
@@ -191,7 +192,7 @@ export function useSolicitacaoActions() {
 
   const cancelar = useMutation({
     mutationFn: async (solicitacao_id: string) => {
-      const { data, error } = await supabase.rpc("cancelar_solicitacao_agendamento" as any, {
+      const { data, error } = await rpcSentinela("cancelar_solicitacao_agendamento", {
         p_solicitacao_id: solicitacao_id,
       });
       if (error) throw error;

@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 import fs from "node:fs";
 
@@ -56,7 +55,6 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mode === "development" && componentTagger(),
     {
       name: "generate-version-json",
       writeBundle() {
@@ -99,8 +97,7 @@ export default defineConfig(({ mode }) => ({
             sizes: "512x512",
             type: "image/png",
             purpose: "any maskable",
-          },
-        ],
+          }],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
@@ -112,8 +109,7 @@ export default defineConfig(({ mode }) => ({
         runtimeCaching: [],
       },
     }),
-    forceRootAssetPathsPlugin(),
-  ].filter(Boolean),
+    forceRootAssetPathsPlugin()].filter(Boolean),
   build: {
     rollupOptions: {
       output: {

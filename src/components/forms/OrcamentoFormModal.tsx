@@ -418,7 +418,7 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
   const handleCopyLink = () => {
     if (!orcamento) return;
     // CAUSA RAIZ: Usava window.location.origin diretamente.
-    const url = getPublicOrcamentoLink(orcamento.numero || orcamento.id);
+    const url = getPublicOrcamentoLink(orcamento.oficina_id, orcamento.id);
     navigator.clipboard.writeText(url);
     toast.success("Link copiado!", { description: "Envie para o cliente visualizar o orçamento" });
   };

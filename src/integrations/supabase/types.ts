@@ -1665,6 +1665,7 @@ export type Database = {
       ordens_servico: {
         Row: {
           alerta_garantia_enviado: boolean | null
+          assinatura_cliente_path: string | null
           assinatura_cliente_url: string | null
           checklist_alternador_ok: boolean | null
           checklist_carga_bateria: string | null
@@ -1716,6 +1717,7 @@ export type Database = {
         }
         Insert: {
           alerta_garantia_enviado?: boolean | null
+          assinatura_cliente_path?: string | null
           assinatura_cliente_url?: string | null
           checklist_alternador_ok?: boolean | null
           checklist_carga_bateria?: string | null
@@ -1767,6 +1769,7 @@ export type Database = {
         }
         Update: {
           alerta_garantia_enviado?: boolean | null
+          assinatura_cliente_path?: string | null
           assinatura_cliente_url?: string | null
           checklist_alternador_ok?: boolean | null
           checklist_carga_bateria?: string | null
@@ -3007,6 +3010,10 @@ export type Database = {
       get_public_orcamento: { Args: { orcamento_id: string }; Returns: Json }
       get_public_orcamento_by_numero: {
         Args: { p_numero: number }
+        Returns: Json
+      }
+      get_public_orcamento_by_oficina_numero: {
+        Args: { p_numero: number; p_oficina_id: string }
         Returns: Json
       }
       get_public_os: { Args: { os_id: string }; Returns: Json }

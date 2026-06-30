@@ -8,6 +8,14 @@
 import { useEffect, useState, useCallback, Component, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  sentinelaRpc,
+  type Nivel,
+  type ScorePayload,
+  type ModulosPayload,
+  type DetectoresPayload,
+  type LogsPayload,
+} from "@/lib/sentinelaRpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,20 +45,6 @@ class LocalBoundary extends Component<{ children: ReactNode; label: string }, { 
     return this.props.children;
   }
 }
-
-/* ─────────── Tipos ─────────── */
-type Nivel = "green" | "yellow" | "red";
-type ScorePayload = {
-  score: number;
-  nivel: Nivel;
-  calculated_at: string;
-  from_cache?: boolean;
-  componentes: Array<{ id: string; label: string; peso: number; valor: number; pontos: number; evidencia_sql: string }>;
-  meta: { rpcs_envoltas: number; rpcs_total: number };
-};
-type ModulosPayload = { modulos: Array<{ id: string; label: string; erros_24h: number; status: Nivel }> };
-type DetectoresPayload = { detectores: Array<{ id: string; label: string; count: number; severidade: Nivel }>; total_inconsistencias: number };
-type LogsPayload = { logs: Array<{ id: string; created_at: string; rpc: string; message: string; severity: string; oficina_id: string | null }> };
 
 const nivelColor = (n: Nivel) => n === "green" ? "text-emerald-500" : n === "yellow" ? "text-yellow-500" : "text-destructive";
 const nivelBg = (n: Nivel) => n === "green" ? "bg-emerald-500/10" : n === "yellow" ? "bg-yellow-500/10" : "bg-destructive/10";
@@ -109,19 +103,15 @@ export default function Sentinela() {
     setLoading(true);
     try {
       const [s, m, d, l] = await Promise.all([
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.rpc as any)("get_sentinela_score"),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.rpc as any)("get_sentinela_modulos"),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.rpc as any)("get_sentinela_detectores"),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.rpc as any)("get_sentinela_logs", { _limit: 50 }),
+        sentinelaRpc.score(),
+        sentinelaRpc.modulos(),
+        sentinelaRpc.detectores(),
+        sentinelaRpc.logs(50),
       ]);
-      setScore(s.data as ScorePayload);
-      setModulos(m.data as ModulosPayload);
-      setDetectores(d.data as DetectoresPayload);
-      setLogs(l.data as LogsPayload);
+      setScore(s.data);
+      setModulos(m.data);
+      setDetectores(d.data);
+      setLogs(l.data);
     } finally {
       setLoading(false);
     }
@@ -132,8 +122,7 @@ export default function Sentinela() {
       const { data: sess } = await supabase.auth.getSession();
       const uid = sess?.session?.user?.id;
       if (!uid) { setAuthorized(false); return; }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)("is_super_admin", { _user_id: uid });
+      const { data, error } = await sentinelaRpc.isSuperAdmin(uid);
       if (error || !data) { setAuthorized(false); return; }
       setAuthorized(true);
       void fetchAll();
@@ -144,8 +133,7 @@ export default function Sentinela() {
   useEffect(() => {
     if (!authorized) return;
     const t = setInterval(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.rpc as any)("get_sentinela_logs", { _limit: 50 }).then(({ data }: { data: LogsPayload }) => setLogs(data));
+      sentinelaRpc.logs(50).then(({ data }) => setLogs(data));
     }, 10_000);
     return () => clearInterval(t);
   }, [authorized]);

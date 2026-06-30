@@ -14,13 +14,14 @@ function getBaseUrl(): string {
 
 
 export function getPublicOSLink(ordem: OrdemServico): string {
-  const identifier = (ordem as any).numero || ordem.id;
+  // BLINDAGEM: link público deve preferir UUID; número sequencial é previsível.
+  const identifier = ordem.id || (ordem as any).numero;
   return `${getBaseUrl()}/os/${identifier}`;
 }
 
 export function getPublicOrcamentoLink(orcamento: Orcamento): string {
-  const identifier = orcamento.numero || orcamento.id;
-  return `${getBaseUrl()}/orcamento/${identifier}`;
+  // BLINDAGEM: links públicos devem preferir UUID, não número sequencial previsível.
+  return `${getBaseUrl()}/orcamento/${orcamento.id}`;
 }
 
 export function formatOSMessage(

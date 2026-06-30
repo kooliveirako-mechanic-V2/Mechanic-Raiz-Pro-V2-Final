@@ -83,7 +83,7 @@ export function OSFinalizadaModal({
   };
 
   const handleCopyLink = () => {
-    const url = getPublicOSLink((ordem as any).numero || ordem.id);
+    const url = getPublicOSLink(ordem);
     navigator.clipboard.writeText(url);
     toast.success("Link copiado!", {
       description: "Envie para o cliente acompanhar o serviço.",
@@ -91,7 +91,7 @@ export function OSFinalizadaModal({
   };
 
   const handleOpenPublic = () => {
-    window.open(getPublicOSLink((ordem as any).numero || ordem.id), "_blank");
+    window.open(getPublicOSLink(ordem), "_blank");
   };
 
   const formatDate = (date: string) => {
@@ -303,7 +303,7 @@ export function OSFinalizadaModal({
           </Button>
           <Button
             variant="outline"
-            onClick={() => window.open(`/os/${(ordem as any).numero || ordem.id}?print=true`, "_blank")}
+            onClick={() => window.open(`/os/${ordem.id}?print=true`, "_blank")}
             className="h-11"
           >
             <Printer className="w-4 h-4 mr-1" />

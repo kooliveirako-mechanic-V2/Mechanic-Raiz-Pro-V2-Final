@@ -127,6 +127,7 @@ function AppContent() {
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/onboarding" element={<Onboarding />} />
                     <Route path="/os/:id" element={<OSPublica />} />
+                    <Route path="/orcamento/o/:oficinaId/:numero" element={<OrcamentoPublico />} />
                     <Route path="/orcamento/:id" element={<OrcamentoPublico />} />
                     <Route path="/portal/:token" element={<PortalCliente />} />
                     <Route path="/agendar/:slug" element={<AgendamentoPublico />} />

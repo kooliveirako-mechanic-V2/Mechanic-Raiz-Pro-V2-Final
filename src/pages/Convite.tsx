@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcSentinela } from "@/lib/sentinela";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -54,7 +55,7 @@ export default function Convite() {
     }
 
     setAccepting(true);
-    const { data, error } = await supabase.rpc("accept_team_invite", { _token: token });
+    const { data, error } = await rpcSentinela("accept_team_invite", { _token: token });
     setAccepting(false);
 
     if (error) {

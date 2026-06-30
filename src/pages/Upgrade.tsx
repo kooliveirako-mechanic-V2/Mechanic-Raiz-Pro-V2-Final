@@ -25,6 +25,7 @@ import { usePlan } from "@/hooks/usePlan";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useOficina } from "@/contexts/OficinaContext";
 import { trackFunnelEvent } from "@/lib/funnelTracking";
+import { trackEvent } from "@/lib/tracking";
 
 // Preços — 3 planos
 const PRICING = {
@@ -175,10 +176,31 @@ export default function Upgrade() {
     
     setSelectedPlan(plan);
 
+    const planPricing = PRICING[plan as PlanKey];
+    const value = planPricing
+      ? (billingCycle === 'annual' ? planPricing.annual : planPricing.monthly)
+      : 0;
+
     trackFunnelEvent({
       event: "checkout_started",
       oficina_id: oficinaAtual?.id || "",
       metadata: { plan, billing_cycle: billingCycle },
+    });
+
+    // Dispara InitiateCheckout (Meta Pixel + MOCapi + dataLayer/Google Ads)
+    // para a compra REAL dentro da plataforma (usuário logado).
+    trackEvent('select_plan', {
+      dedupKey: `select_plan:${oficinaAtual?.id || 'anon'}:${plan}:${billingCycle}`,
+      dedupTtlMs: 60_000,
+      params: {
+        plan_type: plan,
+        plan_name: plan,
+        billing_cycle: billingCycle,
+        value,
+        currency: 'BRL',
+        content_category: 'subscription',
+        source: 'in_app_upgrade',
+      },
     });
     
     try {

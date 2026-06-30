@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,12 +21,13 @@ interface ItemOrcamento {
 
 interface PublicOrcamento {
   id: string;
+  oficina_id: string;
   numero: number;
   titulo: string;
   descricao: string | null;
   status: string;
   valor_total: number;
-  custo_total: number;
+  custo_total?: number;
   desconto: number;
   validade: string | null;
   observacoes: string | null;
@@ -61,22 +62,30 @@ const statusConfig: Record<string, { label: string; className: string; icon: any
 };
 
 export default function OrcamentoPublico() {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const { id, oficinaId, numero: numeroParam } = useParams<{ id?: string; oficinaId?: string; numero?: string }>();
   const [orcamento, setOrcamento] = useState<PublicOrcamento | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
   const [approved, setApproved] = useState(false);
 
-  // Detect if param is UUID or numeric
+  // Nova rota tem oficinaId + numero. Rota legacy tem apenas `id` (UUID).
+  const hasOficinaNumero = !!oficinaId && !!numeroParam && /^\d+$/.test(numeroParam);
   const isUuid = id ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) : false;
-  const isNumeric = id ? /^\d+$/.test(id) : false;
+  const isNumericLegacy = !hasOficinaNumero && id ? /^\d+$/.test(id) : false;
 
   useEffect(() => {
     async function fetchOrcamento() {
-      if (!id) {
+      if (!hasOficinaNumero && !id) {
         setError("ID do orçamento não fornecido");
+        setLoading(false);
+        return;
+      }
+
+      // BLOQUEIO DE SEGURANÇA: qualquer link público por número sequencial é previsível.
+      // O formato aceito para cliente é /orcamento/:uuid.
+      if (isNumericLegacy || hasOficinaNumero) {
+        setError("Este link está desatualizado. Peça à oficina para gerar e enviar o link novamente.");
         setLoading(false);
         return;
       }
@@ -85,13 +94,7 @@ export default function OrcamentoPublico() {
         let data: any = null;
         let rpcError: any = null;
 
-        if (isNumeric) {
-          //Friendly URL: /orcamento/42
-          const res = await supabase.rpc("get_public_orcamento_by_numero", { p_numero: parseInt(id, 10) });
-          data = res.data;
-          rpcError = res.error;
-        } else if (isUuid) {
-          // Legacy UUID URL
+        if (isUuid) {
           const res = await supabase.rpc("get_public_orcamento", { orcamento_id: id });
           data = res.data;
           rpcError = res.error;
@@ -101,54 +104,18 @@ export default function OrcamentoPublico() {
           return;
         }
 
-        if (!rpcError && data) {
-          // Se for UUID mas tiver numero, redireciona para a URL amigável
-          if (isUuid && (data as any).numero) {
-            navigate(`/orcamento/${(data as any).numero}`, { replace: true });
-            return;
-          }
+        if (!rpcError && data && !data.error) {
           setOrcamento(data as unknown as PublicOrcamento);
           setLoading(false);
           return;
         }
 
-        // Fallback: SELECT direto (Blindagem contra falhas de RPC)
-        console.log("[OrcamentoPublico] RPC falhou ou não retornou dados, tentando SELECT direto...");
-        let query = supabase
-          .from('orcamentos')
-          .select(`
-            id, numero, titulo, descricao, status, valor_total, custo_total, 
-            desconto, validade, observacoes, created_at,
-            oficina:oficinas(nome, logo_url, telefone, endereco),
-            cliente:clientes(nome, telefone, email),
-            veiculo:veiculos(marca, modelo, placa, ano, tipo),
-            itens:itens_orcamento(id, nome_item, tipo, quantidade, valor_unitario, valor_total)
-          `);
-
-        if (isNumeric) {
-          query = query.eq('numero', parseInt(id, 10));
-        } else {
-          query = query.eq('id', id);
-        }
-
-        const { data: directData, error: directError } = await query.maybeSingle();
-        
-        if (directData && !directError) {
-          console.log("[OrcamentoPublico] Dados recuperados via Fallback Select");
-          const fetchedOrcamento = directData as unknown as PublicOrcamento;
-          // Redireciona para URL amigável se for UUID mas recuperamos o número
-          if (isUuid && fetchedOrcamento.numero) {
-            navigate(`/orcamento/${fetchedOrcamento.numero}`, { replace: true });
-            return;
-          }
-          setOrcamento(fetchedOrcamento);
-          setLoading(false);
+        if (rpcError) throw rpcError;
+        if (data?.error === "rate_limit_exceeded") {
+          setError("Muitas tentativas. Aguarde um minuto e tente novamente.");
           return;
         }
 
-        if (rpcError) throw rpcError;
-        if (directError) throw directError;
-        
         setError("Orçamento não encontrado");
       } catch (err: any) {
         console.error("Error fetching orcamento:", err);
@@ -158,8 +125,9 @@ export default function OrcamentoPublico() {
       }
     }
 
+
     fetchOrcamento();
-  }, [id, isUuid, isNumeric, navigate]);
+  }, [id, hasOficinaNumero, isUuid, isNumericLegacy]);
 
   // Realtime: subscribe to orcamento changes
   useEffect(() => {
@@ -178,10 +146,7 @@ export default function OrcamentoPublico() {
         (payload) => {
           const updated = payload.new as any;
           if (updated) {
-            // Re-fetch full data via RPC to get joined relations
-            const fetchFn = isNumeric
-              ? supabase.rpc("get_public_orcamento_by_numero", { p_numero: parseInt(id!, 10) })
-              : supabase.rpc("get_public_orcamento", { orcamento_id: orcamento.id });
+            const fetchFn = supabase.rpc("get_public_orcamento", { orcamento_id: orcamento.id });
             fetchFn.then(({ data }) => {
               if (data) {
                 const newData = data as unknown as PublicOrcamento;
@@ -199,7 +164,7 @@ export default function OrcamentoPublico() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [orcamento?.id, id, isNumeric]);
+  }, [orcamento?.id, oficinaId, numeroParam, hasOficinaNumero]);
 
   const formatDate = (dateStr: string) => {
     const [year, month, day] = dateStr.split("-");
@@ -235,7 +200,7 @@ export default function OrcamentoPublico() {
   };
 
   const handleApproveWhatsApp = async () => {
-    if (!orcamento || !id) return;
+    if (!orcamento) return;
     setApproving(true);
     try {
       const { data, error } = await supabase.rpc("public_approve_orcamento", {
@@ -295,6 +260,7 @@ export default function OrcamentoPublico() {
   }
 
   if (error || !orcamento) {
+    const isLegacyLink = isNumericLegacy || hasOficinaNumero;
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4 safe-area-inset">
         <motion.div
@@ -302,14 +268,36 @@ export default function OrcamentoPublico() {
           animate={{ opacity: 1, scale: 1 }}
         >
           <Card className="max-w-sm w-full">
-            <CardContent className="pt-8 pb-6 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
-                <FileText className="w-8 h-8 text-destructive" />
+            <CardContent className="pt-8 pb-6 text-center space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-warning/10 flex items-center justify-center mx-auto">
+                <FileText className="w-8 h-8 text-warning" />
               </div>
-              <h2 className="text-xl font-bold text-foreground mb-2">Oops!</h2>
-              <p className="text-muted-foreground text-sm">
-                {error || "Orçamento não encontrado"}
-              </p>
+              {isLegacyLink ? (
+                <>
+                  <h2 className="text-xl font-bold text-foreground">Link desatualizado</h2>
+                  <p className="text-muted-foreground text-sm">
+                    Este link de orçamento foi gerado em uma versão antiga e não é mais válido por segurança.
+                  </p>
+                  <div className="bg-muted/50 rounded-lg p-3 text-left text-sm space-y-2">
+                    <p className="font-semibold text-foreground">O que fazer:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                      <li>Volte ao WhatsApp da oficina</li>
+                      <li>Peça para enviar o link novamente</li>
+                      <li>O novo link começará com um código longo (seguro)</li>
+                    </ol>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    A oficina já tem essa atualização disponível e pode reenviar em 1 clique.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-xl font-bold text-foreground">Oops!</h2>
+                  <p className="text-muted-foreground text-sm">
+                    {error || "Orçamento não encontrado"}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </motion.div>

@@ -101,12 +101,12 @@ export function OSVisualizacaoModal({
   };
 
   const handleOpenPublic = () => {
-    window.open(`/os/${(ordem as any).numero || ordem.id}`, "_blank");
+    window.open(`/os/${ordem.id}`, "_blank");
   };
 
   const handlePrint = () => {
     // Open print-friendly version
-    window.open(`/os/${(ordem as any).numero || ordem.id}?print=true`, "_blank");
+    window.open(`/os/${ordem.id}?print=true`, "_blank");
   };
 
   const formatDate = (date: string) => {

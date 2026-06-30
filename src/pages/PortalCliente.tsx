@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcSentinelaPublic } from "@/lib/sentinela";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, isPast, isFuture, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -183,7 +184,7 @@ export default function PortalCliente() {
     try {
       // P0-4: Use SECURITY DEFINER RPC instead of direct table update
       // This bypasses RLS which blocks unauthenticated portal users
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('portal_update_orcamento_status', {
+      const { data: rpcResult, error: rpcError } = await rpcSentinelaPublic('portal_update_orcamento_status', {
         p_token: token,
         p_orcamento_id: orcamentoId,
         p_action: action,

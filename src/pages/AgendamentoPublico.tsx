@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { rpcSentinelaPublic } from "@/lib/sentinela";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -141,7 +142,7 @@ export default function AgendamentoPublico() {
   const submit = async () => {
     if (!slug || !servicoId || !data || !hora) return;
     setSubmitting(true);
-    const { data: res, error } = await supabase.rpc("solicitar_agendamento_publico" as any, {
+    const { data: res, error } = await rpcSentinelaPublic("solicitar_agendamento_publico", {
       p_slug: slug,
       p_cliente_nome: form.nome.trim(),
       p_cliente_telefone: form.telefone.replace(/\D/g, ""),

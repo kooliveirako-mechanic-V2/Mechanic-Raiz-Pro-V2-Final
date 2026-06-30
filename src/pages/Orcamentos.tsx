@@ -145,7 +145,7 @@ export default function Orcamentos() {
     e.stopPropagation();
     // CAUSA RAIZ: Usava window.location.origin diretamente, ignorando a lógica de domínio customizado.
     // Agora usa getPublicOrcamentoLink que possui a blindagem necessária.
-    const url = getPublicOrcamentoLink(orcamento.numero || orcamento.id);
+    const url = getPublicOrcamentoLink(orcamento.oficina_id, orcamento.id);
     navigator.clipboard.writeText(url);
     toast.success("Link copiado!");
   };
@@ -407,6 +407,12 @@ export default function Orcamentos() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {(orcamento.status === "enviado" || orcamento.status === "aprovado") && (
+                            <DropdownMenuItem onClick={(e) => handleWhatsApp(e as unknown as React.MouseEvent, orcamento)}>
+                              <Send className="w-4 h-4 mr-2" />
+                              Reenviar link atualizado
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={(e) => handleCopyLink(e as unknown as React.MouseEvent, orcamento)}>
                             <Link2 className="w-4 h-4 mr-2" />
                             Copiar link
