@@ -134,47 +134,35 @@ export function useDashboard() {
     staleTime: 60000,
   });
 
-  // 5. Stats Operacionais (não financeiros)
+  // 5. Stats Operacionais (não financeiros) - consolidated into single RPC
   const { data: operationalStats, isLoading: operationalLoading } = useQuery({
     queryKey: ["dashboard-operacional", oficinaAtual?.id],
     queryFn: async () => {
       if (!oficinaAtual?.id) return null;
-      const hoje = format(new Date(), "yyyy-MM-dd");
       const inicioMes = format(startOfMonth(new Date()), "yyyy-MM-dd");
-      const prevMonth = subMonths(new Date(), 1);
-      const inicioPrev = format(startOfMonth(prevMonth), "yyyy-MM-dd");
-      const fimPrev = format(endOfMonth(prevMonth), "yyyy-MM-dd");
+      const fimMes = format(endOfMonth(new Date()), "yyyy-MM-dd");
 
-      const [
-        servicosHojeRes, 
-        totalClientesRes, 
-        novosClientesMesRes, 
-        servicosAtrasadosRes, 
-        estoqueRes,
-        servicosAtualRes,
-        servicosPrevRes,
-        clientesPrevRes
-      ] = await Promise.all([
-        supabase.from("ordens_servico").select("id, status").eq("oficina_id", oficinaAtual.id).eq("data_servico", hoje),
-        supabase.from("clientes").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id),
-        supabase.from("clientes").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id).gte("created_at", inicioMes),
-        supabase.from("ordens_servico").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id).in("status", ["pendente", "em_andamento"]).lt("data_servico", hoje),
-        supabase.from("estoque").select("id, quantidade, alerta_minimo").eq("oficina_id", oficinaAtual.id).eq("arquivado", false),
-        supabase.from("ordens_servico").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id).eq("status", "finalizado").gte("data_servico", inicioMes),
-        supabase.from("ordens_servico").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id).eq("status", "finalizado").gte("data_servico", inicioPrev).lte("data_servico", fimPrev),
-        supabase.from("clientes").select("id", { count: "exact", head: true }).eq("oficina_id", oficinaAtual.id).gte("created_at", inicioPrev).lte("created_at", fimPrev),
-      ]);
+      const { data, error } = await supabase.rpc("get_dashboard_stats", {
+        p_oficina_id: oficinaAtual.id,
+        p_data_inicio: inicioMes,
+        p_data_fim: fimMes,
+      });
+
+      if (error) {
+        console.error("[useDashboard] get_dashboard_stats error:", error);
+        throw error;
+      }
 
       return {
-        servicosHoje: servicosHojeRes.data?.length || 0,
-        servicosFinalizadosHoje: servicosHojeRes.data?.filter((s) => s.status === "finalizado").length || 0,
-        totalClientes: totalClientesRes.count || 0,
-        novosClientesMes: novosClientesMesRes.count || 0,
-        servicosAtrasados: servicosAtrasadosRes.count || 0,
-        estoqueBaixo: estoqueRes.data?.filter((item) => item.quantidade <= item.alerta_minimo).length || 0,
-        servicosAtualCount: servicosAtualRes.count || 0,
-        servicosPrevCount: servicosPrevRes.count || 0,
-        clientesPrevCount: clientesPrevRes.count || 0,
+        servicosHoje: data?.servicos_hoje || 0,
+        servicosFinalizadosHoje: data?.servicos_finalizados_hoje || 0,
+        totalClientes: data?.total_clientes || 0,
+        novosClientesMes: data?.novos_clientes_mes || 0,
+        servicosAtrasados: data?.servicos_atrasados || 0,
+        estoqueBaixo: data?.estoque_baixo || 0,
+        servicosAtualCount: data?.servicos_atual_count || 0,
+        servicosPrevCount: data?.servicos_prev_count || 0,
+        clientesPrevCount: data?.clientes_prev_count || 0,
       };
     },
     enabled: !!oficinaAtual?.id,
