@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, User, Car, X, Loader2, ChevronDown, FileText, Receipt } from "lucide-react";
-import { useClientes } from "@/hooks/useClientes";
 import { useVeiculos } from "@/hooks/useVeiculos";
-import { useOrdensServico } from "@/hooks/useOrdensServico";
 import { useOrcamentos } from "@/hooks/useOrcamentos";
+import { useOSSearch } from "@/hooks/useOSSearch";
+import { useClienteSearch } from "@/hooks/useClienteSearch";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { SearchMiniProfile } from "./SearchMiniProfile";
@@ -49,22 +49,22 @@ export function MobileQuickSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { clientes, isLoading: clientesLoading } = useClientes();
   const { veiculos, isLoading: veiculosLoading } = useVeiculos();
-  const { ordens: ordensServico, isLoading: osLoading } = useOrdensServico();
   const { orcamentos, isLoading: orcLoading } = useOrcamentos();
-  const isLoading = clientesLoading || veiculosLoading || osLoading || orcLoading;
+  const { results: clienteResults, isLoading: clientesLoading } = useClienteSearch(query);
+  const { results: osResults, isLoading: osLoading } = useOSSearch(query);
+  const isLoading = (query.length >= 2) && (clientesLoading || veiculosLoading || osLoading || orcLoading);
 
   // FIX: useMemo instead of useEffect+setState to prevent infinite render loop
   const results = useMemo(() => {
     if (!query || query.length < 2) return [];
 
     const s = query.toLowerCase();
-    const queryNum = parseInt(query);
+    const numeroMatch = query.trim().match(/^(?:os\s*)?#?\s*(\d+)$/i);
+    const queryNum = numeroMatch ? parseInt(numeroMatch[1]) : NaN;
     const r: SearchResult[] = [];
 
-    clientes
-      .filter(c => c.nome.toLowerCase().includes(s) || c.telefone?.includes(query) || c.cpf_cnpj?.includes(query))
+    clienteResults
       .slice(0, 3)
       .forEach(c => r.push({
         type: "cliente", id: c.id, clienteId: c.id, clienteNome: c.nome, clienteTelefone: c.telefone,
@@ -75,29 +75,19 @@ export function MobileQuickSearch() {
       .filter(v => v.placa?.toLowerCase().includes(s) || v.modelo.toLowerCase().includes(s) || v.marca.toLowerCase().includes(s))
       .slice(0, 3)
       .forEach(v => {
-        const cliente = clientes.find(c => c.id === v.cliente_id);
         r.push({
-          type: "veiculo", id: v.id, clienteId: v.cliente_id, clienteNome: cliente?.nome || "Cliente", clienteTelefone: cliente?.telefone,
+          type: "veiculo", id: v.id, clienteId: v.cliente_id, clienteNome: v.cliente?.nome || "Cliente", clienteTelefone: v.cliente?.telefone,
           title: `${v.marca} ${v.modelo}`, subtitle: v.placa || "Sem placa",
         });
       });
 
-    ordensServico
-      .filter(os => {
-        const cliente = clientes.find(c => c.id === os.cliente_id);
-        return (
-          (os.numero && !isNaN(queryNum) && os.numero === queryNum) ||
-          os.tipo_servico.toLowerCase().includes(s) ||
-          cliente?.nome.toLowerCase().includes(s)
-        );
-      })
+    osResults
       .slice(0, 3)
       .forEach(os => {
-        const cliente = clientes.find(c => c.id === os.cliente_id);
         r.push({
           type: "os", id: os.id,
           title: `OS #${os.numero || "—"}`,
-          subtitle: `${cliente?.nome || "Cliente"} · ${statusLabels[os.status] || os.status}`,
+          subtitle: `${os.cliente?.nome || "Cliente"} · ${statusLabels[os.status] || os.status}`,
           valor: os.valor_servico,
         });
       });
@@ -115,7 +105,7 @@ export function MobileQuickSearch() {
       });
 
     return r;
-  }, [query, clientes, veiculos, ordensServico, orcamentos]);
+  }, [query, clienteResults, veiculos, osResults, orcamentos]);
 
   useEffect(() => {
     if (!query || query.length < 2) {
@@ -181,7 +171,7 @@ export function MobileQuickSearch() {
           value={query}
           onChange={(e) => { setQuery(e.target.value); setIsOpen(true); setExpandedId(null); }}
           onFocus={() => setIsOpen(true)}
-          placeholder="Buscar placa, cliente, OS..."
+          placeholder="Placa, cliente, #123 da OS..."
           inputMode="text"
           autoCapitalize="characters"
           className="w-full h-11 pl-10 pr-9 rounded-xl bg-card border border-border/60 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50 transition-all"

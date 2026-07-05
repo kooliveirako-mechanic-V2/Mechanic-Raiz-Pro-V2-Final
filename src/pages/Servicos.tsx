@@ -543,7 +543,7 @@ export default function Servicos() {
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por cliente, serviço ou placa..."
+              placeholder="Cliente, placa, serviço ou #123 da OS..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 text-base"

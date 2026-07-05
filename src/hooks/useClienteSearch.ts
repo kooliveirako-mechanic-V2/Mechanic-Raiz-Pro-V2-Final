@@ -15,6 +15,7 @@ export function useClienteSearch(searchTerm: string) {
 
   // Normaliza o termo para busca de documentos (remove formatação)
   const normalizedTerm = trimmed.replace(/[.\-\/]/g, "");
+  const normalizedPhone = trimmed.replace(/\D/g, "");
 
   const { data: results = [], isLoading } = useQuery({
     queryKey: ["clientes_search", oficinaAtual?.id, trimmed],
@@ -23,14 +24,15 @@ export function useClienteSearch(searchTerm: string) {
 
       const likeTerm = `%${trimmed}%`;
       const likeNormalized = `%${normalizedTerm}%`;
+      const likePhone = `%${normalizedPhone}%`;
 
-      // Server-side search: nome, telefone, email + CPF/CNPJ normalizado
+      // Server-side search: nome, email + telefone/CPF-CNPJ normalizados
       const { data, error } = await supabase
         .from("clientes")
         .select("*")
         .eq("oficina_id", oficinaAtual.id)
         .or(
-          `nome.ilike.${likeTerm},telefone.ilike.${likeTerm},email.ilike.${likeTerm},cpf_cnpj.ilike.${likeNormalized}`
+          `nome.ilike.${likeTerm},telefone_normalizado.ilike.${likePhone},email.ilike.${likeTerm},cpf_cnpj.ilike.${likeNormalized}`
         )
         .order("nome", { ascending: true })
         .limit(50);

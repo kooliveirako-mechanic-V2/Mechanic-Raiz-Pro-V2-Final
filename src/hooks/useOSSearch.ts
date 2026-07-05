@@ -18,7 +18,8 @@ export function useOSSearch(searchTerm: string) {
       if (!oficinaAtual || trimmed.length < 2) return [];
 
       const likeTerm = `%${trimmed}%`;
-      const isNumero = /^\d+$/.test(trimmed);
+      const likePlaca = `%${trimmed.toUpperCase().replace(/[^A-Z0-9]/g, "")}%`;
+      const numeroMatch = trimmed.match(/^(?:os\s*)?#?\s*(\d+)$/i);
 
       // Base query
       let query = supabase
@@ -30,9 +31,9 @@ export function useOSSearch(searchTerm: string) {
         `)
         .eq("oficina_id", oficinaAtual.id);
 
-      // Se for número, busca exata por número OS + busca parcial por texto
-      if (isNumero) {
-        query = query.or(`numero.eq.${trimmed},tipo_servico.ilike.${likeTerm},descricao.ilike.${likeTerm}`);
+      // Se for número de OS (aceita "123", "#123", "OS 123"), busca exata + busca parcial por texto
+      if (numeroMatch) {
+        query = query.or(`numero.eq.${numeroMatch[1]},tipo_servico.ilike.${likeTerm},descricao.ilike.${likeTerm}`);
       } else {
         query = query.or(`tipo_servico.ilike.${likeTerm},descricao.ilike.${likeTerm}`);
       }
@@ -62,10 +63,10 @@ export function useOSSearch(searchTerm: string) {
         .select(`
           *,
           cliente:clientes(id, nome, telefone),
-          veiculo:veiculos!inner(id, tipo, marca, modelo, placa)
+          veiculo:veiculos!inner(id, tipo, marca, modelo, placa, placa_normalizada)
         `)
         .eq("oficina_id", oficinaAtual.id)
-        .ilike("veiculo.placa", likeTerm)
+        .ilike("veiculo.placa_normalizada", likePlaca)
         .order("data_servico", { ascending: false })
         .limit(50);
 
