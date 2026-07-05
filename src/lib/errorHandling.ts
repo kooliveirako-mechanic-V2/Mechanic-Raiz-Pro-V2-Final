@@ -310,8 +310,24 @@ export function waitForOnline(): Promise<void> {
   });
 }
 
+function saveEventToLocalStorage(logEntry: Record<string, unknown>): void {
+  try {
+    const logs = JSON.parse(localStorage.getItem("mechanic_event_logs") || "[]");
+    logs.push(logEntry);
+
+    if (logs.length > 100) {
+      logs.splice(0, logs.length - 100);
+    }
+
+    localStorage.setItem("mechanic_event_logs", JSON.stringify(logs));
+  } catch (error) {
+    console.error("[BusinessLog] Erro ao salvar log:", error);
+  }
+}
+
 /**
- * Log de evento de negócio (não técnico)
+ * Log de evento de negócio (não técnico). Grava em audit_logs (fire-and-forget);
+ * cai para localStorage se o insert falhar (ex: offline).
  */
 export function logBusinessEvent(
   event: string,
@@ -323,22 +339,41 @@ export function logBusinessEvent(
     timestamp,
     ...data,
   };
-  
-  // Salvar no localStorage para auditoria local
-  try {
-    const logs = JSON.parse(localStorage.getItem("mechanic_event_logs") || "[]");
-    logs.push(logEntry);
-    
-    // Manter apenas últimos 100 eventos
-    if (logs.length > 100) {
-      logs.splice(0, logs.length - 100);
-    }
-    
-    localStorage.setItem("mechanic_event_logs", JSON.stringify(logs));
-  } catch (error) {
-    console.error("[BusinessLog] Erro ao salvar log:", error);
-  }
-  
-  // Também logar no console para debugging
+
   console.log(`[BusinessEvent] ${event}`, data || "");
+
+  void (async () => {
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data: sess } = await supabase.auth.getSession();
+      const user_id = sess?.session?.user?.id ?? null;
+      let oficina_id: string | null = null;
+      try {
+        oficina_id = localStorage.getItem("oficina_id_ativa") ?? null;
+      } catch {
+        /* SSR/sandbox sem localStorage */
+      }
+
+      if (!user_id) {
+        saveEventToLocalStorage(logEntry);
+        return;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("audit_logs") as any).insert({
+        action: event,
+        table_name: "business_event",
+        user_id,
+        oficina_id,
+        new_data: logEntry,
+      });
+
+      if (error) {
+        saveEventToLocalStorage(logEntry);
+      }
+    } catch (err) {
+      console.warn("[BusinessLog] Falha ao gravar em audit_logs, usando fallback local", err);
+      saveEventToLocalStorage(logEntry);
+    }
+  })();
 }
