@@ -13,6 +13,9 @@ import {
   Clock,
   Car,
   Bike,
+  Truck,
+  Bus,
+  Tractor,
   X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -186,7 +189,11 @@ export function LembretesManutencao({
                       {veiculos.map((v) => (
                         <SelectItem key={v.id} value={v.id}>
                           <span className="flex items-center gap-2">
-                            {v.tipo === "carro" ? <Car className="w-4 h-4" /> : <Bike className="w-4 h-4" />}
+                            {v.tipo === "caminhao" ? <Truck className="w-4 h-4" />
+                              : v.tipo === "onibus" ? <Bus className="w-4 h-4" />
+                              : v.tipo === "agricola" ? <Tractor className="w-4 h-4" />
+                              : v.tipo === "moto" ? <Bike className="w-4 h-4" />
+                              : <Car className="w-4 h-4" />}
                             {v.marca} {v.modelo} {v.placa && `• ${v.placa}`}
                           </span>
                         </SelectItem>

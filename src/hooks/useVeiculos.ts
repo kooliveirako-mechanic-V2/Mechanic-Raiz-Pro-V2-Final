@@ -7,11 +7,13 @@ import { checkAndSendAchievement, getTableCount } from "@/lib/achievements";
 import { withRetry, humanizeError } from "@/lib/errorHandling";
 import { guardCreateVeiculo } from "@/lib/runtimeGuards";
 
+export type TipoVeiculo = "moto" | "carro" | "caminhao" | "van" | "onibus" | "agricola";
+
 export interface Veiculo {
   id: string;
   cliente_id: string;
   oficina_id: string;
-  tipo: "moto" | "carro";
+  tipo: TipoVeiculo;
   marca: string;
   modelo: string;
   ano: number | null;
@@ -33,7 +35,7 @@ export interface Veiculo {
 
 export interface VeiculoInput {
   cliente_id: string;
-  tipo: "moto" | "carro";
+  tipo: TipoVeiculo;
   marca: string;
   modelo: string;
   ano?: number;

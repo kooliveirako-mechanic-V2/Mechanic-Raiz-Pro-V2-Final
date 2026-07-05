@@ -13,7 +13,7 @@ import { useOficina } from "@/contexts/OficinaContext";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ClienteSelectWithCreate } from "./ClienteSelectWithCreate";
 import { HistoricoEletricoTimeline } from "@/components/veiculos/HistoricoEletricoTimeline";
-import { Loader2, Car, Bike, Trash2, Zap, FileText } from "lucide-react";
+import { Loader2, Car, Bike, Truck, Bus, Tractor, Trash2, Zap, FileText } from "lucide-react";
 import { VehicleBrandModelSelect } from "./VehicleBrandModelSelect";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -22,7 +22,7 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 
 const veiculoSchema = z.object({
   cliente_id: z.string().min(1, "Selecione um cliente"),
-  tipo: z.enum(["carro", "moto"]),
+  tipo: z.enum(["carro", "moto", "caminhao", "van", "onibus", "agricola"]),
   marca: z.string().trim().min(1, "Marca é obrigatória").max(50, "Máximo 50 caracteres"),
   modelo: z.string().trim().min(1, "Modelo é obrigatório").max(50, "Máximo 50 caracteres"),
   ano: z.number().min(1900).max(new Date().getFullYear() + 1).optional().nullable(),
@@ -286,7 +286,7 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
               <span>{showMoto ? "Moto" : "Carro"}</span>
             </div>
           ) : (
-            <Select value={tipo} onValueChange={(v) => setTipo(v as "carro" | "moto")}>
+            <Select value={tipo} onValueChange={(v) => setTipo(v as TipoVeiculo)}>
               <SelectTrigger className="h-12">
                 <SelectValue />
               </SelectTrigger>
@@ -299,6 +299,26 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
                 <SelectItem value="moto">
                   <div className="flex items-center gap-2">
                     <Bike className="w-4 h-4" /> Moto
+                  </div>
+                </SelectItem>
+                <SelectItem value="caminhao">
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-4 h-4" /> Caminhão
+                  </div>
+                </SelectItem>
+                <SelectItem value="van">
+                  <div className="flex items-center gap-2">
+                    <Car className="w-4 h-4" /> Van
+                  </div>
+                </SelectItem>
+                <SelectItem value="onibus">
+                  <div className="flex items-center gap-2">
+                    <Bus className="w-4 h-4" /> Ônibus
+                  </div>
+                </SelectItem>
+                <SelectItem value="agricola">
+                  <div className="flex items-center gap-2">
+                    <Tractor className="w-4 h-4" /> Agrícola
                   </div>
                 </SelectItem>
               </SelectContent>
