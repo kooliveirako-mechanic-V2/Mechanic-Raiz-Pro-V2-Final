@@ -37,7 +37,7 @@ import {
 } from "recharts";
 import { useFinanceiro } from "@/hooks/useFinanceiro";
 import { formatCurrency } from "@/lib/formatters";
-import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { format, subDays, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { getUnifiedSeries } from "@/services/financeiroService";
@@ -53,25 +53,67 @@ import { Shield } from "lucide-react";
 // FEATURE FLAG: FINANCEIRO_V2_MOBILE_ENABLED
 export const FINANCEIRO_V2_MOBILE_ENABLED = FEATURE_FLAGS_V2.MOBILE_V2_ENABLED;
 
+type PeriodoFilter = "mes_atual" | "mes_anterior" | "3m";
+
+const periodoOptions: { value: PeriodoFilter; label: string }[] = [
+  { value: "mes_atual", label: "Este mês" },
+  { value: "mes_anterior", label: "Mês anterior" },
+  { value: "3m", label: "3 meses" },
+];
+
+function getPeriodoRange(periodo: PeriodoFilter): { inicio: string; fim: string } {
+  const now = new Date();
+  if (periodo === "mes_anterior") {
+    const prev = subMonths(now, 1);
+    return { inicio: format(startOfMonth(prev), "yyyy-MM-dd"), fim: format(endOfMonth(prev), "yyyy-MM-dd") };
+  }
+  if (periodo === "3m") {
+    return { inicio: format(startOfMonth(subMonths(now, 2)), "yyyy-MM-dd"), fim: format(endOfMonth(now), "yyyy-MM-dd") };
+  }
+  return { inicio: format(startOfMonth(now), "yyyy-MM-dd"), fim: format(endOfMonth(now), "yyyy-MM-dd") };
+}
+
+function PeriodoSelector({ value, onChange }: { value: PeriodoFilter; onChange: (v: PeriodoFilter) => void }) {
+  return (
+    <div className="flex gap-1.5 flex-wrap">
+      {periodoOptions.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            value === opt.value
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function MobileFinanceiro() {
   const [activeTab, setActiveTab] = useState("all");
   const [showChart, setShowChart] = useState(true);
   const [financeiroModalOpen, setFinanceiroModalOpen] = useState(false);
   const [vendaDetalheId, setVendaDetalheId] = useState<string | null>(null);
   const [tipoModal, setTipoModal] = useState<"entrada" | "saida">("entrada");
-  const { 
-    registros, 
-    totalEntradas, 
-    totalSaidas, 
-    lucroTotal, 
+  const [periodo, setPeriodo] = useState<PeriodoFilter>("mes_atual");
+  const periodoRange = useMemo(() => getPeriodoRange(periodo), [periodo]);
+  const {
+    registros,
+    totalEntradas,
+    totalSaidas,
+    lucroTotal,
     faturamentoMes,
     lucroOperacional,
     cmvTotal,
     perdasOperacionais,
     saldoAReceber,
-    isLoading, 
-    deleteRegistro 
-  } = useFinanceiro();
+    isLoading,
+    deleteRegistro
+  } = useFinanceiro(periodoRange);
   const { oficinaAtual } = useOficina();
 
   // Hook V2 (condicional)
@@ -186,6 +228,8 @@ export function MobileFinanceiro() {
           </Button>
         </div>
       </div>
+
+      <PeriodoSelector value={periodo} onChange={setPeriodo} />
 
       {/* Resumo Financeiro Oficial (V2 ou Legado) */}
       <div className="grid grid-cols-2 gap-3">

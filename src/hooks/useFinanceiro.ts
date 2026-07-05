@@ -33,21 +33,30 @@ export interface Financeiro {
   comprovante_url?: string | null;
 }
 
-export function useFinanceiro() {
+export interface UseFinanceiroPeriodo {
+  inicio: string;
+  fim: string;
+}
+
+export function useFinanceiro(periodo?: UseFinanceiroPeriodo) {
   const { oficinaAtual } = useOficina();
   const queryClient = useQueryClient();
 
+  const inicio = periodo?.inicio ?? format(startOfMonth(new Date()), "yyyy-MM-dd");
+  const fim = periodo?.fim ?? format(endOfMonth(new Date()), "yyyy-MM-dd");
+
   // 1. Listagem bruta (continua vindo da tabela, mas com RLS)
   const { data: registros = [], isLoading: listLoading, error: listError } = useQuery({
-    queryKey: ["financeiro-list", oficinaAtual?.id],
+    queryKey: ["financeiro-list", oficinaAtual?.id, inicio, fim],
     queryFn: async (): Promise<Financeiro[]> => {
       if (!oficinaAtual) return [];
       const { data, error } = await supabase
         .from("financeiro")
         .select("*")
         .eq("oficina_id", oficinaAtual.id)
-        .order("data", { ascending: false })
-        .limit(100);
+        .gte("data", inicio)
+        .lte("data", fim)
+        .order("data", { ascending: false });
 
       if (error) throw error;
       return data as Financeiro[];
@@ -57,11 +66,9 @@ export function useFinanceiro() {
 
   // 2. TOTAIS OFICIAIS (Vem da RPC de Métricas Unificadas)
   const { data: metrics, isLoading: metricsLoading } = useQuery({
-    queryKey: ["financeiro-unificado-atual", oficinaAtual?.id],
+    queryKey: ["financeiro-unificado-atual", oficinaAtual?.id, inicio, fim],
     queryFn: async () => {
       if (!oficinaAtual) return null;
-      const inicio = format(startOfMonth(new Date()), "yyyy-MM-dd");
-      const fim = format(endOfMonth(new Date()), "yyyy-MM-dd");
       return await getUnifiedMetrics({
         oficinaId: oficinaAtual.id,
         inicio,
