@@ -9,6 +9,33 @@ const corsHeaders = {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// IN-MEMORY RATE LIMITING: 60 requests per minute per IP.
+// Only applies when HMAC signature validation fails — legitimate MP
+// webhook traffic (valid signature) always bypasses this.
+// ═══════════════════════════════════════════════════════════════════
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(identifier: string, maxRequests: number, windowMs: number): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(identifier);
+
+  if (Math.random() < 0.05) {
+    for (const [key, val] of rateLimitMap.entries()) {
+      if (val.resetAt < now) rateLimitMap.delete(key);
+    }
+  }
+
+  if (!entry || entry.resetAt < now) {
+    rateLimitMap.set(identifier, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (entry.count >= maxRequests) return false;
+  entry.count++;
+  return true;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // SCHEMA VALIDATION - Validate incoming webhook payloads
 // ═══════════════════════════════════════════════════════════════════
 const WebhookPayloadSchema = z.object({
@@ -291,6 +318,14 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════════════════════
     const signatureValid = await validateMPSignature(req, payload.data.id)
     if (!signatureValid) {
+      const clientIP = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+      if (!checkRateLimit(`mp-webhook:${clientIP}`, 60, 60_000)) {
+        console.error(`🚨 Rate limit exceeded for unsigned webhook requests from ${clientIP}`)
+        return new Response(
+          JSON.stringify({ error: 'Too many requests' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '60' } }
+        )
+      }
       console.error('🚨 SECURITY: Invalid webhook signature rejected!')
       return new Response(
         JSON.stringify({ error: 'Invalid signature' }),
