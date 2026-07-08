@@ -146,6 +146,110 @@ export function isProductionHost(): boolean {
   return PROD_HOSTS.has(getHost());
 }
 
+// ---------- Cookie reader (para _fbp / _fbc) ----------
+function readCookie(name: string): string | null {
+  try {
+    if (typeof document === "undefined") return null;
+    const m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/([.$?*|{}()\[\]\\\/\+^])/g, "\\$1") + "=([^;]*)"));
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch { return null; }
+}
+
+// ---------- Webhook server-side (Marketing Oracle CAPI) ----------
+// Fire-and-forget. NUNCA await. Falha NÃO pode quebrar Pixel/GA4/dataLayer.
+// keepalive:true garante que sobrevive ao redirect do WhatsApp.
+// Endpoint real do backend Marketing Oracle (CAPI server-side).
+const TRACK_WEBHOOK_URL = "https://www.marketingtracking.online/api/public/capi/event";
+const LEADS_SECRET = (import.meta as any).env?.VITE_MRP_LEADS_SECRET as string | undefined;
+const PIXEL_ID = ((import.meta as any).env?.VITE_MRP_PIXEL_ID as string | undefined) || "904555945615995";
+
+// Nome interno → nome oficial da Meta (dedup precisa bater 1:1 com fbq)
+function toMetaEventName(mrpEventName: string): string {
+  return EVENT_NAME_MAP[mrpEventName]?.meta || mrpEventName;
+}
+
+function sendTrackingWebhook(
+  mrpEventName: string,
+  params: Record<string, any>,
+  eventId: string,
+): void {
+  try {
+    if (typeof window === "undefined") return;
+    // Debug opt-in: ?mrp_track_debug=1 na URL ou localStorage.MRP_TRACK_DEBUG="1"
+    // permite validar o webhook fora de PROD_HOSTS sem enfraquecer o guard.
+    let debugForce = false;
+    try {
+      debugForce =
+        localStorage.getItem("MRP_TRACK_DEBUG") === "1" ||
+        new URLSearchParams(window.location.search).get("mrp_track_debug") === "1";
+      if (new URLSearchParams(window.location.search).get("mrp_track_debug") === "1") {
+        localStorage.setItem("MRP_TRACK_DEBUG", "1");
+      }
+    } catch {}
+    if (!isProductionHost() && !debugForce) {
+      console.info("[track] dry-run webhook", mrpEventName);
+      return;
+    }
+    if (!LEADS_SECRET) {
+      console.warn("[track] VITE_MRP_LEADS_SECRET ausente — webhook CAPI não será chamado");
+      return;
+    }
+
+    const utms = (window as any).MRP_getUTMs?.() ?? {};
+    const metaName = toMetaEventName(mrpEventName);
+    const fbp = readCookie("_fbp") ?? undefined;
+    const fbc = readCookie("_fbc") ?? undefined;
+
+    const custom_data: Record<string, any> = {
+      value:        params?.value ?? 0,
+      currency:     params?.currency ?? "BRL",
+      utm_source:   utms.utm_source,
+      utm_medium:   utms.utm_medium,
+      utm_campaign: utms.utm_campaign,
+      utm_content:  utms.utm_content,
+      utm_term:     utms.utm_term,
+      fbclid:       utms.fbclid,
+      gclid:        utms.gclid,
+    };
+
+    const body = {
+      event_name: metaName,
+      event_id: eventId,
+      event_time: Math.floor(Date.now() / 1000),
+      action_source: "website",
+      event_source_url: window.location.href,
+      user_data: {
+        email: params?.email || undefined,
+        phone: params?.phone || undefined,
+        fbp: fbp || undefined,
+        fbc: fbc || undefined,
+        client_user_agent: navigator.userAgent,
+      },
+      custom_data,
+    };
+
+    fetch(TRACK_WEBHOOK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-leads-secret": LEADS_SECRET,
+        ...(PIXEL_ID ? { "x-pixel-id": PIXEL_ID } : {}),
+      },
+      body: JSON.stringify(body),
+      keepalive: true,
+    }).catch(() => {});
+
+    // Dedup client↔server: MESMO event_id no Pixel (4º arg).
+    // Só dispara se o fbq direto existir E o evento tiver mapeamento oficial Meta.
+    try {
+      if (EVENT_NAME_MAP[mrpEventName] && typeof (window as any).fbq === "function") {
+        (window as any).fbq("track", metaName, custom_data, { eventID: eventId });
+      }
+    } catch {}
+  } catch {}
+}
+
+
 // ---------- visitor_id (persistente em localStorage) ----------
 export function getVisitorId(): string {
   if (typeof window === "undefined") return "";
@@ -440,6 +544,9 @@ export function trackEvent(mrpEventName: string, options: TrackEventOptions = {}
 
   // [Fase G] Disparos diretos de Meta Pixel (fbq) e MOCapi/CAPI removidos.
   void skipPixel; void skipMocapi;
+
+  // 3) Webhook server-side (Marketing Oracle CAPI) — fire-and-forget, paralelo
+  sendTrackingWebhook(mrpEventName, params, eventId);
 
   console.info(isProd ? "[trackEvent]" : "[trackEvent PREVIEW]", mrpEventName, {
     eventId,
