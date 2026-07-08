@@ -71,28 +71,10 @@
          A partir de agora, page_view SPA-aware sai de trackEvent('page_view')
          no ScrollToTop.tsx, com dataLayer + Pixel + MOCapi deduplicados. -->
 
-    <!-- Meta Pixel Code – Mechanic Raiz (ID: 904555945615995) -->
-    <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)
-    }(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    // [Fase E] Desliga AUTO-EVENTS do Meta (autoConfig=false) ANTES do init.
-    // Motivo: o auto-config injetava eventos como "SubscribeButtonClick" / "ButtonClick"
-    // automaticamente em qualquer botão com texto tipo "Assinar/Começar/Entrar",
-    // gerando disparos sem event_id (não dedupáveis) e conflitando com select_plan/contact.
-    // Agora SÓ disparam os eventos que NÓS controlamos via trackEvent().
-    fbq('set', 'autoConfig', 'false', '904555945615995');
-    fbq('init', '904555945615995');
-    // [Fase A+I] fbq('track','PageView') REMOVIDO daqui.
-    // PageView agora sai EXCLUSIVAMENTE de trackEvent('page_view') → dataLayer → GTM,
-    // com eventID={{DLV - event_id}} configurado na tag Meta Pixel - PageView no GTM.
-    </script>
+    <!-- [Fase J] Meta Pixel Code REMOVIDO para evitar inicialização dupla.
+         O Pixel agora é carregado e inicializado exclusivamente via Google Tag Manager (GTM-MQH8GDJN),
+         evitando o erro "Duplicate Pixel ID 904555945615995" no console e garantindo a correta
+         deduplicação (event_id UUID v4 compartilhado) com o CAPI do Marketing-Oracle. -->
 
     <!-- [Fase I] Marketing Oracle capi-client.js REMOVIDO do <head>.
          Motivo: (1) expunha LEADS_SECRET no HTML/bundle (P0 secret leak)
@@ -341,10 +323,6 @@
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <!-- Meta Pixel NoScript Fallback -->
-    <noscript>
-    <img height="1" width="1" style="display:none"
-    src="https://www.facebook.com/tr?id=904555945615995&ev=PageView&noscript=1"/>
-    </noscript>
+    <!-- [Fase J] Meta Pixel NoScript Fallback REMOVIDO para evitar PageView duplicado não-dedupável. -->
   </body>
 </html>
