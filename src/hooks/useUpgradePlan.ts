@@ -29,8 +29,8 @@ export const PLANS: Record<string, PlanConfig> = {
   carro_pro: {
     id: "carro_pro",
     name: "Carro Pro",
-    monthlyPrice: 67.90,
-    annualPrice: 679.00,
+    monthlyPrice: 1.00,
+    annualPrice: 1.00,
     features: [
       "Clientes ilimitados",
       "Veículos (apenas carros)",

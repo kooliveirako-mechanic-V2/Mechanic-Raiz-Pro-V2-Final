@@ -27,8 +27,8 @@ export interface CatalogEntry {
 export const SUBSCRIPTION_CATALOG: Record<string, CatalogEntry> = {
   moto_pro_monthly:         { plan_type: 'moto_pro',    original_plan: 'moto_pro',         billing_cycle: 'monthly', unit_price: 47.90,  title: 'Assinatura Moto Pro (mensal)',         description: 'Plano mensal Moto Pro - Mechanic Raiz Pro' },
   moto_pro_annual:          { plan_type: 'moto_pro',    original_plan: 'moto_pro',         billing_cycle: 'annual',  unit_price: 479.00, title: 'Assinatura Moto Pro (anual)',          description: 'Plano anual Moto Pro - Mechanic Raiz Pro' },
-  carro_pro_monthly:        { plan_type: 'oficina_pro', original_plan: 'carro_pro',        billing_cycle: 'monthly', unit_price: 67.90,  title: 'Assinatura Carro Pro (mensal)',        description: 'Plano mensal Carro Pro - Mechanic Raiz Pro' },
-  carro_pro_annual:         { plan_type: 'oficina_pro', original_plan: 'carro_pro',        billing_cycle: 'annual',  unit_price: 679.00, title: 'Assinatura Carro Pro (anual)',         description: 'Plano anual Carro Pro - Mechanic Raiz Pro' },
+  carro_pro_monthly:        { plan_type: 'oficina_pro', original_plan: 'carro_pro',        billing_cycle: 'monthly', unit_price: 1.00,  title: 'Assinatura Carro Pro (mensal)',        description: 'Plano mensal Carro Pro - Mechanic Raiz Pro' },
+  carro_pro_annual:         { plan_type: 'oficina_pro', original_plan: 'carro_pro',        billing_cycle: 'annual',  unit_price: 1.00, title: 'Assinatura Carro Pro (anual)',         description: 'Plano anual Carro Pro - Mechanic Raiz Pro' },
   oficina_completa_monthly: { plan_type: 'oficina_pro', original_plan: 'oficina_completa', billing_cycle: 'monthly', unit_price: 97.90,  title: 'Assinatura Oficina Completa (mensal)', description: 'Plano mensal Oficina Completa - Mechanic Raiz Pro' },
   oficina_completa_annual:  { plan_type: 'oficina_pro', original_plan: 'oficina_completa', billing_cycle: 'annual',  unit_price: 979.00, title: 'Assinatura Oficina Completa (anual)',  description: 'Plano anual Oficina Completa - Mechanic Raiz Pro' },
 };

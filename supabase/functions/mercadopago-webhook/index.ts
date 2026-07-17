@@ -276,6 +276,10 @@ Deno.serve(async (req) => {
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   const mpAccessToken = Deno.env.get('MP_ACCESS_TOKEN')
 
+  // DEBUG: verificar se o runtime enxerga o secret
+  console.log("DEBUG MP_ACCESS_TOKEN existe:", !!mpAccessToken);
+  console.log("DEBUG ENV keys:", Object.keys(Deno.env.toObject()));
+
   if (!mpAccessToken) {
     console.error('❌ MP_ACCESS_TOKEN not configured')
     return new Response(
