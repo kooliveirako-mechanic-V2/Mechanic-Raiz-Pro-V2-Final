@@ -43,7 +43,7 @@ $$
 | Trata conflito | ✅ | `ON CONFLICT (user_id) DO NOTHING` |
 | SECURITY DEFINER | ✅ | Necessário para inserir em `public.profiles` de trigger em `auth` |
 | search_path seguro | ✅ | `SET search_path TO 'public'` — previne substituição maliciosa |
-| Risco de bloquear signup | ✅ Baixo | `RETURN NEW` ocorre independente do INSERT; erro no INSERT seria silenciado por DO NOTHING |
+| Risco de bloquear signup | **REAL — ver análise abaixo** | RETURN NEW ocorre após INSERT; uma exceção não-tratada propaga e bloqueia o signup |
 | Colunas NOT NULL | ✅ | `nome` tem fallback para `email` via COALESCE |
 | Metadados ausentes | ✅ Tratado | COALESCE garante valor mesmo sem `raw_user_meta_data` |
 | Backfill automático dos existentes | ❌ Não acontece | Trigger só dispara em futuros INSERTs — não cria profiles para os 35 existentes |
