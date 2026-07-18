@@ -67,7 +67,7 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
     setMsgAprovacao(config.agendamento_online_mensagem_aprovacao);
   }, [config]);
 
-  const PUBLIC_BASE_URL = "https://mechanicraizpro.lovable.app";
+  const PUBLIC_BASE_URL = "https://www.mechanicraizpro.com.br";
   const publicUrl = useMemo(() => {
     if (!slug) return "";
     return `${PUBLIC_BASE_URL}/agendar/${slug}`;
