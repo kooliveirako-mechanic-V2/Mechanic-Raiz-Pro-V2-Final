@@ -14,9 +14,9 @@
 | 2 — Matriz de secrets | ✅ CONCLUÍDA (auditoria) | Aguardar valor de `RESEND_API_KEY` do usuário; decidir Lead Finder e CAPI |
 | 3 — Edge Functions | 🟡 EM ANDAMENTO (inventário) | Corrigir `RESEND_API_CHAVE` → `RESEND_API_KEY`; redeploy Grupo A; aguardar gates |
 | 4 — Storage | ⬜ NÃO INICIADA | Aguardar GATE 1 |
-| 5 — Auth | ⬜ NÃO INICIADA | Aguardar GATE 1 |
-| 6 — Google OAuth / remover Lovable | ⬜ NÃO INICIADA | Branch `migration/remove-lovable-auth` a criar |
-| 7 — Frontend e Vercel | 🟡 EM ANDAMENTO (template) | Verificar consumo de `VITE_SUPABASE_PROJECT_ID`; aguardar gates anteriores |
+| 5 — Auth | ✅ PILOTO EXISTENTE APROVADO | Próximo teste separado: conta própria com email/senha |
+| 6 — Google OAuth / remover Lovable | ✅ PILOTO APROVADO | Não repetir OAuth nesta rodada; avançar depois para usuários restantes |
+| 7 — Frontend e Vercel | 🟡 EM ANDAMENTO (template) | Próximo teste separado: conta própria com email/senha; Vercel segue sem alteração |
 | 8 — Paridade de dados | ⬜ NÃO INICIADA | Aguardar GATE 1 |
 | 9 — Estratégia delta (backup desatualizado) | ⬜ NÃO INICIADA | Aguardar paridade confirmada |
 | 10 — Plano de virada e rollback | ⬜ NÃO INICIADA | Aguardar todas as fases anteriores |
@@ -129,12 +129,12 @@
 |------|--------|---------|-----------|-----------|
 | Schema | — | — | ❌ | Aguardando resultado SQL |
 | Dados | — | — | ❌ | Aguardando resultado SQL |
-| Auth | — | — | ❌ | 35 users confirmados, integridade não verificada |
+| Auth | ✅ | — | — | Piloto Google aprovado: sessão criada, UUID preservado, sem duplicata |
 | Storage | — | — | ❌ | Aguardando auditoria |
 | Edge Functions | — | 🟡 6/28 publicadas | — | 3 problemas no Grupo A |
 | Secrets | — | 🟡 2/9 corretos | — | RESEND com nome errado |
-| OAuth | — | — | ❌ | Branch a criar |
-| Frontend | — | 🟡 template pronto | — | `VITE_SUPABASE_PROJECT_ID` a verificar |
+| OAuth | ✅ | — | — | Piloto Google aprovado no branch `migration/remove-lovable-auth` |
+| Frontend | — | 🟡 template pronto | — | Homepage/auth local validados; Vercel segue sem alteração |
 | Vercel | — | — | ❌ | Não alterar ainda |
 | Mercado Pago | — | — | ❌ | Aguardar virada completa |
 | Emails | — | — | ❌ | RESEND bloqueado |

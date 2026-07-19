@@ -43,9 +43,11 @@ Alterar em: Vercel → Settings → Environment Variables → **Production only*
 | # | Item | Onde configurar | Ação |
 |---|------|----------------|------|
 | 1 | URL do webhook Mercado Pago | Painel MP → Webhooks → Produção | Trocar para URL do Supabase novo |
-| 2 | Google OAuth callback | Google Cloud Console + Supabase novo → Auth → Providers → Google | Adicionar `https://kurlgmngmglhvknwxjee.supabase.co/auth/v1/callback` |
+| 2 | Google OAuth callback | Google Cloud Console + Supabase novo → Auth → Providers → Google | ✅ Piloto aprovado com `https://kurlgmngmglhvknwxjee.supabase.co/auth/v1/callback` |
 | 3 | Site URL no Supabase novo | Supabase novo → Auth → URL Configuration | Definir `https://www.mechanicraizpro.com.br` |
 | 4 | Redirect URLs no Supabase novo | Supabase novo → Auth → URL Configuration | Adicionar `https://www.mechanicraizpro.com.br/**` |
+
+**Piloto Google aprovado em 2026-07-18:** UUID preservado, `auth.identities` criada sem duplicar usuário, oficina carregada após grants mínimos de leitura.
 
 ---
 
