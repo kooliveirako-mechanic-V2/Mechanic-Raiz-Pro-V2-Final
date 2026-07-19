@@ -16,8 +16,8 @@
 | 4 — Storage | ⬜ NÃO INICIADA | Aguardar GATE 1 |
 | 5 — Auth | ✅ PILOTOS GOOGLE + SENHA APROVADOS | Próximo passo: investigar falhas isoladas por recovery individual, sem reset em massa |
 | 6 — Google OAuth / remover Lovable | ✅ PILOTO APROVADO | Não repetir OAuth nesta rodada; avançar depois para usuários restantes |
-| 7 — Frontend e Vercel | 🟡 EM ANDAMENTO (template) | Estratégia confirmada: login normal primeiro, recovery individual só para quem falhar |
-| 8 — Paridade de dados | ⬜ NÃO INICIADA | Aguardar GATE 1 |
+| 7 — Frontend e Vercel | 🟡 EM ANDAMENTO (template) | Leituras core validadas por grants mínimos; repetir por tela real conforme necessário |
+| 8 — Paridade de dados | 🟡 VALIDAÇÃO PARCIAL | Conta real confirmou clientes/veículos/OS/estoque sob RLS sem cross-tenant |
 | 9 — Estratégia delta (backup desatualizado) | ⬜ NÃO INICIADA | Aguardar paridade confirmada |
 | 10 — Plano de virada e rollback | ⬜ NÃO INICIADA | Aguardar todas as fases anteriores |
 
@@ -134,7 +134,7 @@
 | Edge Functions | — | 🟡 6/28 publicadas | — | 3 problemas no Grupo A |
 | Secrets | — | 🟡 2/9 corretos | — | RESEND com nome errado |
 | OAuth | ✅ | — | — | Piloto Google aprovado no branch `migration/remove-lovable-auth` |
-| Frontend | — | 🟡 template pronto | — | Homepage/auth local validados; Vercel segue sem alteração |
+| Frontend | ✅ leituras core | — | — | Conta real carrega 8 clientes, 9 veículos, 14 OS, 0 estoque sob RLS |
 
 **Estratégia oficial atualizada:** preservar todos os usuários existentes; login normal primeiro; recovery individual somente para usuários que realmente falharem.
 | Vercel | — | — | ❌ | Não alterar ainda |
