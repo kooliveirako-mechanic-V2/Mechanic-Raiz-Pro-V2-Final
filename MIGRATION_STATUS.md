@@ -14,9 +14,9 @@
 | 2 — Matriz de secrets | ✅ CONCLUÍDA (auditoria) | Aguardar valor de `RESEND_API_KEY` do usuário; decidir Lead Finder e CAPI |
 | 3 — Edge Functions | 🟡 EM ANDAMENTO (inventário) | Corrigir `RESEND_API_CHAVE` → `RESEND_API_KEY`; redeploy Grupo A; aguardar gates |
 | 4 — Storage | ⬜ NÃO INICIADA | Aguardar GATE 1 |
-| 5 — Auth | ✅ PILOTO EXISTENTE APROVADO | Próximo teste separado: conta própria com email/senha |
+| 5 — Auth | ✅ PILOTOS GOOGLE + SENHA APROVADOS | Próximo passo: investigar falhas isoladas por recovery individual, sem reset em massa |
 | 6 — Google OAuth / remover Lovable | ✅ PILOTO APROVADO | Não repetir OAuth nesta rodada; avançar depois para usuários restantes |
-| 7 — Frontend e Vercel | 🟡 EM ANDAMENTO (template) | Próximo teste separado: conta própria com email/senha; Vercel segue sem alteração |
+| 7 — Frontend e Vercel | 🟡 EM ANDAMENTO (template) | Estratégia confirmada: login normal primeiro, recovery individual só para quem falhar |
 | 8 — Paridade de dados | ⬜ NÃO INICIADA | Aguardar GATE 1 |
 | 9 — Estratégia delta (backup desatualizado) | ⬜ NÃO INICIADA | Aguardar paridade confirmada |
 | 10 — Plano de virada e rollback | ⬜ NÃO INICIADA | Aguardar todas as fases anteriores |
@@ -129,12 +129,14 @@
 |------|--------|---------|-----------|-----------|
 | Schema | — | — | ❌ | Aguardando resultado SQL |
 | Dados | — | — | ❌ | Aguardando resultado SQL |
-| Auth | ✅ | — | — | Piloto Google aprovado: sessão criada, UUID preservado, sem duplicata |
+| Auth | ✅ | — | — | Pilotos Google + senha aprovados; reset geral descartado por enquanto |
 | Storage | — | — | ❌ | Aguardando auditoria |
 | Edge Functions | — | 🟡 6/28 publicadas | — | 3 problemas no Grupo A |
 | Secrets | — | 🟡 2/9 corretos | — | RESEND com nome errado |
 | OAuth | ✅ | — | — | Piloto Google aprovado no branch `migration/remove-lovable-auth` |
 | Frontend | — | 🟡 template pronto | — | Homepage/auth local validados; Vercel segue sem alteração |
+
+**Estratégia oficial atualizada:** preservar todos os usuários existentes; login normal primeiro; recovery individual somente para usuários que realmente falharem.
 | Vercel | — | — | ❌ | Não alterar ainda |
 | Mercado Pago | — | — | ❌ | Aguardar virada completa |
 | Emails | — | — | ❌ | RESEND bloqueado |
