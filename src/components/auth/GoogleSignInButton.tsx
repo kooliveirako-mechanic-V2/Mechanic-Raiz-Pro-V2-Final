@@ -1,25 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { lovable } from "@/integrations/lovable";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
-const LOVABLE_OAUTH_BROKER_URL = "https://mechanicraizpro.lovable.app/~oauth/initiate";
-
-function isLovableHostedOrigin() {
-  const host = window.location.hostname;
-  return host === "localhost" || host === "127.0.0.1" || host.endsWith(".lovable.app");
-}
-
-function createOAuthState() {
-  if (window.crypto?.getRandomValues) {
-    return Array.from(window.crypto.getRandomValues(new Uint8Array(16)))
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
-  }
-
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
-}
 
 export function GoogleSignInButton() {
   const [loading, setLoading] = useState(false);
@@ -27,34 +10,20 @@ export function GoogleSignInButton() {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      const redirectUri = `${window.location.origin}/auth`;
-
-      if (!isLovableHostedOrigin()) {
-        const params = new URLSearchParams({
-          provider: "google",
-          redirect_uri: redirectUri,
-          state: createOAuthState(),
-        });
-
-        window.location.assign(`${LOVABLE_OAUTH_BROKER_URL}?${params.toString()}`);
-        return;
-      }
-
-      // OAuth gerenciado do Lovable Cloud — usa o broker oauth.lovable.app
-      // cadastrado nas Redirect URIs do Google Cloud Console.
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: redirectUri,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth`,
+        },
       });
 
-      if (result.error) {
-        console.error("[GoogleSignIn] Erro OAuth Lovable:", result.error);
+      if (error) {
+        console.error("[GoogleSignIn] Erro OAuth:", error);
         toast.error("Erro ao entrar com Google", {
-          description: result.error.message || "Tente novamente.",
+          description: error.message || "Tente novamente.",
         });
-        return;
       }
-      // Se result.redirected, o navegador já foi redirecionado para o Google.
-      // Caso contrário, a sessão já foi setada pelo módulo lovable.
+      // On success the browser is redirected to Google — no further action needed here.
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error("[GoogleSignIn] Erro inesperado:", err);

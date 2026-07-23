@@ -99,7 +99,7 @@ const handler = async (req: Request): Promise<Response> => {
       "https://mechanicraizpro.com.br",
       "https://www.mechanicraizpro.com.br",
       "https://mechanicraizpro.vercel.app",
-      "https://mechanicraizpro.lovable.app",
+      "https://mechanicraizpro.lovable.app", // TODO: remove after Lovable cutover
     ];
 
     let safeRedirectUrl = "https://mechanicraizpro.com.br/reset-password";

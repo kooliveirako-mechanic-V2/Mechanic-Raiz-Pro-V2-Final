@@ -521,17 +521,16 @@ export function trackEvent(mrpEventName: string, options: TrackEventOptions = {}
         metadata: params
       });
 
-      // Update session if it's a new or existing visitor
       if (visitorId) {
-        await supabase.from("marketing_sessions").upsert({
-          visitor_id: visitorId,
-          session_id: sessionId,
-          last_seen: new Date().toISOString(),
-          last_page_url: context.page_url,
-          first_utm_source: context.utm_source,
-          first_utm_medium: context.utm_medium,
-          first_utm_campaign: context.utm_campaign,
-        }, { onConflict: 'visitor_id' });
+        await supabase.rpc("upsert_marketing_session_public", {
+          p_visitor_id: visitorId,
+          p_session_id: sessionId,
+          p_last_seen: new Date().toISOString(),
+          p_last_page_url: context.page_url,
+          p_first_utm_source: context.utm_source,
+          p_first_utm_medium: context.utm_medium,
+          p_first_utm_campaign: context.utm_campaign,
+        });
       }
     } catch (e) {
       // Fail silently for the user, but we'll see logs if needed

@@ -129,7 +129,7 @@ async function checkSpikes(): Promise<AlertItem[]> {
         body_html: htmlWrap(
           "Pico de erros detectado",
           `<p><b>RPC:</b> ${rpc}<br/><b>Ocorrências:</b> ${count} nos últimos 10 minutos.</p>
-           <p>Abra <a href="https://mechanicraizpro.lovable.app/sentinela">o painel Sentinela</a> para investigar.</p>`
+           <p>Abra <a href="https://www.mechanicraizpro.com.br/sentinela">o painel Sentinela</a> para investigar.</p>`
         ),
         payload: { rpc, count },
       });
@@ -233,7 +233,7 @@ async function checkSilentBugs(): Promise<AlertItem[]> {
         body_html: htmlWrap(
           d.label,
           `<p><b>Detector:</b> ${d.id}<br/><b>Ocorrências:</b> ${d.count}<br/><b>Severidade:</b> ${d.severidade}</p>
-           <p>Abra <a href="https://mechanicraizpro.lovable.app/sentinela">o painel Sentinela</a>.</p>`
+           <p>Abra <a href="https://www.mechanicraizpro.com.br/sentinela">o painel Sentinela</a>.</p>`
         ),
         payload: d as unknown as Record<string, unknown>,
       });
