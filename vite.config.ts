@@ -44,10 +44,10 @@ export default defineConfig(({ mode }) => {
 
   const supabaseUrl = hasSupabaseEnv
     ? env.VITE_SUPABASE_URL
-    : "https://cuhkkoqqeguascdsvtky.supabase.co";
+    : "https://kurlgmngmglhvknwxjee.supabase.co";
   const supabasePublishableKey = hasSupabaseEnv
     ? env.VITE_SUPABASE_PUBLISHABLE_KEY
-    : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1aGtrb3FxZWd1YXNjZHN2dGt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDIyNjYsImV4cCI6MjA4OTg3ODI2Nn0.0alA3zv0qnf9oXI8A2GOIFBG4WhwAzfZjQ1j5a7RTkA";
+    : "sb_publishable_-iEJez4gaykHtGaYEISPgQ_LfrRwMzL";
   const supabaseProjectId = new URL(supabaseUrl).hostname.split(".")[0];
 
   return {
