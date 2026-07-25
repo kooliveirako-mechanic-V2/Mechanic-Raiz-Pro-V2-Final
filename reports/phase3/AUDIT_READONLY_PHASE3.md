@@ -8,11 +8,11 @@
 
 ## 1. Hashes SHA-256 dos Corpos Extraídos
 
-- `16417e8cc2640a1f4a97e31fa57ab82f910ffc19194bd5cb568d15bd6f8c7e02` *reports/phase3/audit/atomic_delete_cliente.sql*
-- `e24229ed500e019d70847f0353e5af35b42c7b1f05a78fb1d853bcf7690e229b` *reports/phase3/audit/atomic_delete_os.sql*
-- `f0ea9c372a5f43eb0842c89ea903a31777eb497c452f17ebdf696165be53b1be` *reports/phase3/audit/cancelar_venda_balcao.sql*
-- `c9b22944d5aba1442fd8a3056eb11eb0b6756e60301d8fc39cf0de2db8494a49` *reports/phase3/audit/criar_os_completa.sql*
-- `a2dc7464373808ef73f6d1a1b09c95496be4b42366daed8bc9d56a08117642ef` *reports/phase3/audit/criar_venda_balcao.sql*
+- `4abf4bc81f04946cd6c49d0e44d5f42eee931241de7d130c92b6969a367ca6ce` *reports/phase3/audit/atomic_delete_cliente.sql*
+- `d56d255b23cf71e8927bfbbc6501a998ebeaf7d9d5143b8302c076c34e72c04f` *reports/phase3/audit/atomic_delete_os.sql*
+- `d0ae2a541d04699cd86cc84046ccafc39fbb3ff44d72d39b63b4f5c92f8b40c1` *reports/phase3/audit/cancelar_venda_balcao.sql*
+- `4b7caf0a0577669c2ddbcf181706d082c20b56e7c370a8bdff51f2a66968b410` *reports/phase3/audit/criar_os_completa.sql*
+- `337c4e07d2294beb233102112c90cf082b5b65ddd8f154e269cc1b14a0721619` *reports/phase3/audit/criar_venda_balcao.sql*
 
 ---
 
@@ -30,11 +30,11 @@
 
 ## 3. Corpos Extraídos
 
-- [atomic_delete_cliente](./audit/atomic_delete_cliente.sql) — SHA256: `16417e8cc2640a1f4a97e31fa57ab82f910ffc19194bd5cb568d15bd6f8c7e02`
-- [atomic_delete_os](./audit/atomic_delete_os.sql) — SHA256: `e24229ed500e019d70847f0353e5af35b42c7b1f05a78fb1d853bcf7690e229b`
-- [cancelar_venda_balcao](./audit/cancelar_venda_balcao.sql) — SHA256: `f0ea9c372a5f43eb0842c89ea903a31777eb497c452f17ebdf696165be53b1be`
-- [criar_os_completa](./audit/criar_os_completa.sql) — SHA256: `c9b22944d5aba1442fd8a3056eb11eb0b6756e60301d8fc39cf0de2db8494a49`
-- [criar_venda_balcao](./audit/criar_venda_balcao.sql) — SHA256: `a2dc7464373808ef73f6d1a1b09c95496be4b42366daed8bc9d56a08117642ef`
+- [atomic_delete_cliente](./audit/atomic_delete_cliente.sql) — SHA256: `4abf4bc81f04946cd6c49d0e44d5f42eee931241de7d130c92b6969a367ca6ce`
+- [atomic_delete_os](./audit/atomic_delete_os.sql) — SHA256: `d56d255b23cf71e8927bfbbc6501a998ebeaf7d9d5143b8302c076c34e72c04f`
+- [cancelar_venda_balcao](./audit/cancelar_venda_balcao.sql) — SHA256: `d0ae2a541d04699cd86cc84046ccafc39fbb3ff44d72d39b63b4f5c92f8b40c1`
+- [criar_os_completa](./audit/criar_os_completa.sql) — SHA256: `4b7caf0a0577669c2ddbcf181706d082c20b56e7c370a8bdff51f2a66968b410`
+- [criar_venda_balcao](./audit/criar_venda_balcao.sql) — SHA256: `337c4e07d2294beb233102112c90cf082b5b65ddd8f154e269cc1b14a0721619`
 
 ---
 
