@@ -105,3 +105,12 @@ electron/
 release/
 dist-electron/
 out/
+
+# ============================================
+# SEGREDOS E ARTEFATOS DE MIGRAÇÃO
+# Nunca versionar tokens, dumps ou backups locais
+# ============================================
+supabase/.temp/
+reports/migration/backups/
+*.backup
+scripts/migration/_jwt_*.txt
