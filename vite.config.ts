@@ -36,11 +36,21 @@ const forceRootAssetPathsPlugin = () => ({
   },
 });
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
   const hasSupabaseEnv = Boolean(
     env.VITE_SUPABASE_URL && env.VITE_SUPABASE_PUBLISHABLE_KEY,
   );
+
+  // Fail-loud: build de produção sem ENV Supabase deve abortar em vez de
+  // cair no fallback hardcoded (evita publicar artefato apontando pro banco errado).
+  // O fallback abaixo permanece apenas para desenvolvimento local (command === "serve").
+  if (command === "build" && !hasSupabaseEnv) {
+    throw new Error(
+      "[vite] Build abortado: VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY são obrigatórias. " +
+        "Configure as variáveis no provedor de deploy.",
+    );
+  }
 
   const supabaseUrl = hasSupabaseEnv
     ? env.VITE_SUPABASE_URL
