@@ -22,11 +22,13 @@ type ErrorRecord = Record<string, unknown>;
 
 export interface RuntimeErrorDiagnostics {
   message: string;
+  name?: string;
   code?: string;
   details?: string;
   hint?: string;
   stack?: string;
   status?: number;
+  url?: string;
   responseBody?: unknown;
 }
 
@@ -48,6 +50,7 @@ export function extractErrorDiagnostics(error: unknown): RuntimeErrorDiagnostics
   if (!isErrorRecord(error)) {
     return {
       message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : undefined,
       stack: error instanceof Error ? error.stack : undefined,
     };
   }
@@ -56,11 +59,13 @@ export function extractErrorDiagnostics(error: unknown): RuntimeErrorDiagnostics
 
   return {
     message: getStringField(error, "message") || String(error),
+    name: getStringField(error, "name"),
     code: getStringField(error, "code"),
     details: getStringField(error, "details"),
     hint: getStringField(error, "hint"),
     stack: getStringField(error, "stack"),
     status: getNumberField(error, "status") ?? getNumberField(error, "statusCode") ?? getNumberField(response || {}, "status"),
+    url: getStringField(error, "url") ?? getStringField(response || {}, "url"),
     responseBody:
       error.body ??
       error.responseBody ??
@@ -211,15 +216,39 @@ export function humanizeError(error: unknown): ErrorInfo {
     }
   }
 
-  // Erro genérico - ainda assim amigável
-  const safeDescription =
-    errorMessage && errorMessage !== "[object Object]" && errorMessage.length < 300
-      ? errorMessage
-      : "Tente novamente em alguns segundos. Se persistir, recarregue a página.";
+  // Erro genérico - ainda assim amigável.
+  // DIAGNÓSTICO (BUG-MOISES): quando nem message/details/hint/code vieram, o erro
+  // chegou "mudo" (fetch falhado, 401 sem corpo, CORS). Registra os campos técnicos
+  // no console para classificar a causa em vez de esconder tudo atrás do fallback.
+  const hasUsableMessage =
+    Boolean(errorMessage) && errorMessage !== "[object Object]" && errorMessage.length < 300;
+
+  if (!hasUsableMessage) {
+    const d = logDetailedError("[humanizeError] erro sem mensagem utilizável", error);
+    const technical = [
+      d.name && `name=${d.name}`,
+      d.status !== undefined && `status=${d.status}`,
+      d.code && `code=${d.code}`,
+      d.details && `details=${d.details}`,
+      d.hint && `hint=${d.hint}`,
+      d.url && `url=${d.url}`,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    return {
+      message: "Algo deu errado",
+      description: technical
+        ? `Detalhe técnico: ${technical}`
+        : "Tente novamente em alguns segundos. Se persistir, recarregue a página.",
+      recoverable: true,
+      action: "Tentar novamente",
+    };
+  }
 
   return {
     message: "Algo deu errado",
-    description: safeDescription,
+    description: errorMessage,
     recoverable: true,
     action: "Tentar novamente",
   };
