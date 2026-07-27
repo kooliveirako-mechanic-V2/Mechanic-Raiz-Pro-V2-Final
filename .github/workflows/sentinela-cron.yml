@@ -1,0 +1,40 @@
+name: Sentinela Cron Fallback
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: sentinela-cron-fallback
+  cancel-in-progress: true
+
+jobs:
+  call-sentinela-detector:
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 3
+    steps:
+      - name: Call sentinela-detector edge function
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -e
+          echo "Run started: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          http_code=$(curl -sS -o /tmp/body.json -w "%{http_code}" \
+            --connect-timeout 10 --max-time 60 \
+            -X POST "$SUPABASE_URL/functions/v1/sentinela-detector" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json")
+
+          echo "HTTP status: $http_code"
+          cat /tmp/body.json
+          echo "Run ended: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          if [ "$http_code" != "200" ]; then
+            echo "::error::sentinela-detector retornou HTTP $http_code, esperado 200"
+            exit 1
+          fi
