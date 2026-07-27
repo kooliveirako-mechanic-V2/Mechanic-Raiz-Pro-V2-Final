@@ -1,0 +1,39 @@
+-- Migration corretiva: restaura o GRANT INSERT em public.estoque para authenticated
+--
+-- CONTEXTO (BUG-MOISES, 2026-07-27)
+--   No banco NOVO (kurlgmngmglhvknwxjee) qualquer INSERT em public.estoque feito por
+--   usuario autenticado retorna:
+--       42501 - permission denied for table estoque
+--       hint: GRANT the required privileges to the current role with:
+--             GRANT INSERT ON public.estoque TO authenticated;
+--   Falha de GRANT ocorre ANTES do RLS, portanto bloqueia TODOS os usuarios
+--   autenticados, nao apenas um cliente. Quebra os 3 modais de cadastro de produto
+--   (EstoqueFormModal, EntradaLoteModal, CatalogoBaseModal), que gravam via INSERT
+--   direto em src/hooks/useEstoque.ts:128 — inclusive pela web.
+--
+-- CAUSA RAIZ
+--   reports/migration/grants-minimos-1.sql concedeu apenas UPDATE em public.estoque
+--   (linha 101) mas INSERT em public.estoque_movimentacoes (linha 102). A tabela filha
+--   ganhou INSERT e a mae nao — lacuna acidental, nao decisao arquitetural. Alem disso
+--   aquele arquivo nunca foi versionado como migration (mora em reports/), logo o grant
+--   de escrita foi aplicado fora do versionamento e nao gerou diff nem passou por CI.
+--
+-- SEGURANCA (por que o GRANT sozinho e suficiente e seguro)
+--   A policy de RLS continua intacta e faz o escopo por oficina:
+--       supabase/migrations/20260311031901_...sql:47
+--       CREATE POLICY "estoque_insert" ON public.estoque
+--         FOR INSERT TO authenticated
+--         WITH CHECK (has_oficina_access(auth.uid(), oficina_id));
+--   O trigger de rate limit tambem permanece ativo:
+--       trg_rate_limit_estoque_insert -> rate_limit_estoque_insert()
+--   Nenhuma policy, RPC ou RLS e alterada aqui. Escopo minimo: 1 privilegio, 1 tabela.
+--
+-- ALINHAMENTO
+--   Deixa estoque igual as tabelas irmas, que ja possuem INSERT para authenticated
+--   (clientes, veiculos, fornecedores) e igual ao banco ANTIGO, onde o INSERT direto
+--   barrava apenas no RLS — nunca no grant.
+--
+-- ROLLBACK
+--   REVOKE INSERT ON TABLE public.estoque FROM authenticated;
+
+GRANT INSERT ON TABLE public.estoque TO authenticated;
