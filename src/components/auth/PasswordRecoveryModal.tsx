@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Mail, ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getBaseUrl } from "@/utils/url";
 
 interface PasswordRecoveryModalProps {
   visible: boolean;
@@ -33,8 +34,10 @@ export function PasswordRecoveryModal({ visible, onClose, initialEmail = "" }: P
     setLoading(true);
 
     try {
-      // Use apex domain to match Supabase Site URL exactly — avoids 307 redirects that strip the hash fragment with tokens
-      const redirectUrl = `https://mechanicraizpro.com.br/reset-password`;
+      // Domínio canônico (www) via getBaseUrl(): o apex responde 307 e o redirect
+      // descarta o hash fragment com o token de recuperação. Verificado 2026-07-29:
+      // apex/reset-password => 307, www/reset-password => 200.
+      const redirectUrl = `${getBaseUrl()}/reset-password`;
 
       const { error } = await supabase.functions.invoke("send-password-reset", {
         body: { email, redirectUrl },
