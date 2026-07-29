@@ -1,4 +1,5 @@
-import { useState, useRef, useMemo, useEffect } from "react";
+import { useState, useRef, useMemo, useEffect, useCallback } from "react";
+import { DraftPromptDialog } from "@/components/DraftPromptDialog";
 import {
   Dialog,
   DialogContent,
@@ -87,7 +88,7 @@ export function VendaRapidaModal({ open, onOpenChange }: VendaRapidaModalProps) 
     step, cart, formaPagamentoId, formaPagamentoNome, clienteId, observacao,
   }), [step, cart, formaPagamentoId, formaPagamentoNome, clienteId, observacao]);
 
-  const { hasDraft, restore, clearDraft } = useAutoSave({
+  const { hasDraft, restore, clearDraft, lastSaved } = useAutoSave({
     key: `venda-rapida-${oficinaAtual?.id || "global"}`,
     data: draftData,
     enabled: open && step !== "sucesso",
@@ -95,52 +96,70 @@ export function VendaRapidaModal({ open, onOpenChange }: VendaRapidaModalProps) 
   });
 
   const hasRestoredRef = useRef(false);
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
 
-  // Reset ao abrir
-  useEffect(() => {
-    if (open) {
-      // tenta restaurar rascunho primeiro
-      if (hasDraft && !hasRestoredRef.current) {
-        hasRestoredRef.current = true;
-        const saved = restore() as typeof draftData | null;
-        if (saved) {
-          setStep(saved.step || "itens");
-          setCart(saved.cart || []);
-          setFormaPagamentoId(saved.formaPagamentoId || "");
-          setFormaPagamentoNome(saved.formaPagamentoNome || "Dinheiro");
-          setClienteId(saved.clienteId || "");
-          setObservacao(saved.observacao || "");
-          setSearch("");
-          setShowManual(false);
-          setManualNome("");
-          setManualValor("");
-          setManualQty(1);
-          setSuccess(null);
-          return;
-        }
-      }
-      setStep("itens");
-      setCart([]);
+  const resetVenda = useCallback(() => {
+    setStep("itens");
+    setCart([]);
+    setSearch("");
+    setShowManual(false);
+    setManualNome("");
+    setManualValor("");
+    setManualQty(1);
+    setClienteId("");
+    setObservacao("");
+    setSuccess(null);
+    const padrao = formasPagamento.find((f) => f.padrao) || formasPagamento[0];
+    if (padrao) {
+      setFormaPagamentoId(padrao.id);
+      setFormaPagamentoNome(padrao.nome);
+    } else {
+      setFormaPagamentoId("");
+      setFormaPagamentoNome("Dinheiro");
+    }
+  }, [formasPagamento]);
+
+  const applyDraft = useCallback(() => {
+    const saved = restore() as typeof draftData | null;
+    if (saved) {
+      setStep(saved.step || "itens");
+      setCart(saved.cart || []);
+      setFormaPagamentoId(saved.formaPagamentoId || "");
+      setFormaPagamentoNome(saved.formaPagamentoNome || "Dinheiro");
+      setClienteId(saved.clienteId || "");
+      setObservacao(saved.observacao || "");
       setSearch("");
       setShowManual(false);
       setManualNome("");
       setManualValor("");
       setManualQty(1);
-      setClienteId("");
-      setObservacao("");
       setSuccess(null);
-      // pré-seleciona forma de pagamento padrão se existir
-      const padrao = formasPagamento.find((f) => f.padrao) || formasPagamento[0];
-      if (padrao) {
-        setFormaPagamentoId(padrao.id);
-        setFormaPagamentoNome(padrao.nome);
-      } else {
-        setFormaPagamentoId("");
-        setFormaPagamentoNome("Dinheiro");
+    }
+    setDraftPromptOpen(false);
+  }, [restore]);
+
+  const discardDraft = useCallback(() => {
+    clearDraft();
+    resetVenda();
+    setDraftPromptOpen(false);
+  }, [clearDraft, resetVenda]);
+
+  // BLINDAGEM UX: nunca restaurar rascunho automaticamente.
+  // Antes: rascunho de venda anterior era restaurado sem aviso, podendo
+  // gerar baixa de estoque errada. Agora usuário decide via prompt.
+  useEffect(() => {
+    if (open) {
+      if (!hasRestoredRef.current) {
+        hasRestoredRef.current = true;
+        if (hasDraft) {
+          setDraftPromptOpen(true);
+        } else {
+          resetVenda();
+        }
       }
     } else {
-      // ao fechar, libera flag para próxima abertura
       hasRestoredRef.current = false;
+      setDraftPromptOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, formasPagamento]);
@@ -780,6 +799,13 @@ export function VendaRapidaModal({ open, onOpenChange }: VendaRapidaModalProps) 
           </div>
         )}
       </DialogContent>
+      <DraftPromptDialog
+        open={draftPromptOpen}
+        label="venda"
+        savedAt={lastSaved}
+        onResume={applyDraft}
+        onDiscard={discardDraft}
+      />
     </Dialog>
   );
 }

@@ -46,6 +46,7 @@ import { getPublicOrcamentoLink } from "@/utils/url";
 import { format } from "date-fns";
 import { handleFormKeyDown } from "@/lib/formGuard";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import { DraftPromptDialog } from "@/components/DraftPromptDialog";
 import { SavingIndicator } from "@/components/ui/saving-indicator";
 
 interface OrcamentoFormModalProps {
@@ -138,6 +139,9 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
 
   const veiculosDoCliente = veiculos.filter((v) => v.cliente_id === clienteId);
 
+  // BLINDAGEM UX: nunca restaurar rascunho automaticamente.
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
+
   // Reset form completely when opening modal for new orcamento
   useEffect(() => {
     if (!open) return; // Only act when opening
@@ -155,11 +159,14 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
     } else {
       if (!draftRestoreAttemptedRef.current) {
         draftRestoreAttemptedRef.current = true;
-        if (restore()) return;
+        if (hasDraft) {
+          setDraftPromptOpen(true);
+          return;
+        }
       }
       resetForm();
     }
-  }, [orcamento, open, restore]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [orcamento, open, hasDraft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Also reset when modal closes to prevent stale state
   useEffect(() => {
@@ -170,6 +177,7 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
         setPendingItems([]);
         setItemSelectorOpen(false);
         draftRestoreAttemptedRef.current = false;
+        setDraftPromptOpen(false);
       }, 300);
       return () => clearTimeout(timer);
     }
@@ -853,6 +861,14 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
           </DrawerContent>
         </Drawer>
 
+        <DraftPromptDialog
+          open={draftPromptOpen}
+          label="orçamento"
+          savedAt={lastSaved}
+          onResume={() => { restore(); setDraftPromptOpen(false); }}
+          onDiscard={() => { clearDraft(); resetForm(); setDraftPromptOpen(false); }}
+        />
+
         <ItemSelector
           open={itemSelectorOpen}
           onOpenChange={setItemSelectorOpen}
@@ -892,6 +908,14 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
           {FormContent}
         </DialogContent>
       </Dialog>
+
+      <DraftPromptDialog
+        open={draftPromptOpen}
+        label="orçamento"
+        savedAt={lastSaved}
+        onResume={() => { restore(); setDraftPromptOpen(false); }}
+        onDiscard={() => { clearDraft(); resetForm(); setDraftPromptOpen(false); }}
+      />
 
       <ItemSelector
         open={itemSelectorOpen}
