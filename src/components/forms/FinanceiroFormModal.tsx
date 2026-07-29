@@ -135,6 +135,10 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
             origem: origemFinal,
             valor: parseFloat(valor),
             data,
+            // Competência = data do lançamento. O trigger trg_financeiro_competencia_default
+            // cobre writers que omitam o campo, mas enviar explícito é o que faz o dado
+            // nascer certo e aparecer em code review (data_competencia é NOT NULL).
+            data_competencia: data,
             descricao: descricao || null,
           });
 
