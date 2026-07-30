@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { MediaThumbnail } from "@/components/ui/media-thumbnail";
-import { resolveFotoUrl } from "@/lib/storage/fotos";
+import { FotoOSThumb } from "@/components/ui/foto-os";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -192,13 +191,8 @@ export function ChecklistDVI({
           continue;
         }
 
-        const { data: urlData } = supabase.storage
-          .from("os-fotos")
-          .getPublicUrl(filePath);
-
-        if (urlData) {
-          newFotos.push(urlData.publicUrl);
-        }
+        // Persiste o path relativo; a leitura usa URL assinada.
+        newFotos.push(filePath);
       }
 
       if (newFotos.length > 0) {
@@ -602,8 +596,8 @@ export function ChecklistDVI({
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
               {fotos.map((foto, index) => (
                 <div key={index} className="relative group aspect-square">
-                  <MediaThumbnail
-                    src={resolveFotoUrl(foto)}
+                  <FotoOSThumb
+                    foto={foto}
                     alt={`Foto ${index + 1}`}
                     className="rounded-xl border border-border"
                   />

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { resolveFotoUrl } from "@/lib/storage/fotos";
+import { FotoOSImg } from "@/components/ui/foto-os";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/formatters";
 import { ptBR } from "date-fns/locale";
@@ -374,9 +374,9 @@ export function HistoricoVeiculo({ veiculoId, veiculoInfo }: HistoricoVeiculoPro
                           </p>
                           <div className="grid grid-cols-4 gap-2">
                             {fotos.map((foto, i) => (
-                              <img
+                              <FotoOSImg
                                 key={i}
-                                src={resolveFotoUrl(foto)}
+                                foto={foto}
                                 alt={`Foto ${i + 1}`}
                                 className="w-full aspect-square object-cover rounded-md border border-border"
                               />

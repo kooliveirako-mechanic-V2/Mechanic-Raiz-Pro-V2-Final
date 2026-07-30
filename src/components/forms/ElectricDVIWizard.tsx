@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { validateFile, safeFileName } from "@/lib/uploadValidation";
-import { MediaThumbnail } from "@/components/ui/media-thumbnail";
-import { resolveFotoUrl } from "@/lib/storage/fotos";
+import { FotoOSThumb } from "@/components/ui/foto-os";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -281,13 +280,8 @@ export function ElectricDVIWizard({
           continue;
         }
 
-        const { data: urlData } = supabase.storage
-          .from("os-fotos")
-          .getPublicUrl(filePath);
-
-        if (urlData) {
-          newFotos.push(urlData.publicUrl);
-        }
+        // Persiste o path relativo; a leitura usa URL assinada.
+        newFotos.push(filePath);
       }
 
       if (newFotos.length > 0) {
@@ -961,8 +955,8 @@ export function ElectricDVIWizard({
               {data.fotos.map((foto, index) => (
                 <div key={index} className="relative group aspect-square">
                   {foto ? (
-                    <MediaThumbnail
-                      src={resolveFotoUrl(foto)}
+                    <FotoOSThumb
+                      foto={foto}
                       alt={`Foto ${index + 1}`}
                       className="rounded-lg border"
                     />
