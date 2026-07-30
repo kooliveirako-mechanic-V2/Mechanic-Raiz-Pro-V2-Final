@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { DraftPromptDialog } from "@/components/DraftPromptDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
@@ -70,7 +71,7 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
     tipo, origem, origemCustom, isCustomCategoryMode, valor, data, descricao,
   }), [tipo, origem, origemCustom, isCustomCategoryMode, valor, data, descricao]);
 
-  const { hasDraft, restore, clearDraft } = useAutoSave({
+  const { hasDraft, restore, clearDraft, lastSaved } = useAutoSave({
     key: `financeiro-form-${oficinaAtual?.id || "global"}-new`,
     data: draftData,
     enabled: open,
@@ -78,7 +79,38 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
   });
 
   const hasRestoredRef = useRef(false);
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
 
+  const resetFinanceiroForm = useCallback(() => {
+    setOrigem("");
+    setOrigemCustom("");
+    setIsCustomCategoryMode(false);
+    setValor("");
+    setData(new Date().toISOString().split("T")[0]);
+    setDescricao("");
+  }, []);
+
+  const applyDraft = useCallback(() => {
+    const saved = restore() as typeof draftData | null;
+    if (saved) {
+      if (!tipoInicial) setTipo(saved.tipo || "entrada");
+      setOrigem(saved.origem || "");
+      setOrigemCustom(saved.origemCustom || "");
+      setIsCustomCategoryMode(!!saved.isCustomCategoryMode);
+      setValor(saved.valor || "");
+      setData(saved.data || new Date().toISOString().split("T")[0]);
+      setDescricao(saved.descricao || "");
+    }
+    setDraftPromptOpen(false);
+  }, [restore, tipoInicial]);
+
+  const discardDraft = useCallback(() => {
+    clearDraft();
+    resetFinanceiroForm();
+    setDraftPromptOpen(false);
+  }, [clearDraft, resetFinanceiroForm]);
+
+  // BLINDAGEM UX: nunca restaurar rascunho silenciosamente.
   useEffect(() => {
     if (tipoInicial) {
       setTipo(tipoInicial);
@@ -86,25 +118,14 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
     if (open) {
       if (hasDraft && !hasRestoredRef.current) {
         hasRestoredRef.current = true;
-        const saved = restore() as typeof draftData | null;
-        if (saved) {
-          if (!tipoInicial) setTipo(saved.tipo || "entrada");
-          setOrigem(saved.origem || "");
-          setOrigemCustom(saved.origemCustom || "");
-          setIsCustomCategoryMode(!!saved.isCustomCategoryMode);
-          setValor(saved.valor || "");
-          setData(saved.data || new Date().toISOString().split("T")[0]);
-          setDescricao(saved.descricao || "");
-        }
+        setDraftPromptOpen(true);
+      } else if (!hasRestoredRef.current) {
+        hasRestoredRef.current = true;
       }
     } else {
       hasRestoredRef.current = false;
-      setOrigem("");
-      setOrigemCustom("");
-      setIsCustomCategoryMode(false);
-      setValor("");
-      setData(new Date().toISOString().split("T")[0]);
-      setDescricao("");
+      setDraftPromptOpen(false);
+      resetFinanceiroForm();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipoInicial, open]);
@@ -321,35 +342,51 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
     </div>
   );
 
+  const draftPrompt = (
+    <DraftPromptDialog
+      open={draftPromptOpen}
+      label={tipo === "entrada" ? "lançamento de entrada" : "lançamento de saída"}
+      savedAt={lastSaved}
+      onResume={applyDraft}
+      onDiscard={discardDraft}
+    />
+  );
+
   // Mobile: Drawer from bottom
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="px-4 pb-6 max-h-[90dvh]">
-          <DrawerHeader className="text-left px-0">
-            <DrawerTitle className="flex items-center gap-2 text-lg">
-              {HeaderContent}
-            </DrawerTitle>
-          </DrawerHeader>
-          <div className="overflow-y-auto">
-            {FormContent}
-          </div>
-        </DrawerContent>
-      </Drawer>
+      <>
+        <Drawer open={open} onOpenChange={onOpenChange}>
+          <DrawerContent className="px-4 pb-6 max-h-[90dvh]">
+            <DrawerHeader className="text-left px-0">
+              <DrawerTitle className="flex items-center gap-2 text-lg">
+                {HeaderContent}
+              </DrawerTitle>
+            </DrawerHeader>
+            <div className="overflow-y-auto">
+              {FormContent}
+            </div>
+          </DrawerContent>
+        </Drawer>
+        {draftPrompt}
+      </>
     );
   }
 
   // Desktop: Dialog
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {HeaderContent}
-          </DialogTitle>
-        </DialogHeader>
-        {FormContent}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {HeaderContent}
+            </DialogTitle>
+          </DialogHeader>
+          {FormContent}
+        </DialogContent>
+      </Dialog>
+      {draftPrompt}
+    </>
   );
 }

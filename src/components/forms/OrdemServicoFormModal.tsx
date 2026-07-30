@@ -26,6 +26,7 @@ import { ResumoFiscalModal } from "@/components/servicos/ResumoFiscalModal";
 import { ServicoRapidoModal } from "@/components/servicos/ServicoRapidoModal";
 import { ParcelasManager } from "@/components/financeiro/ParcelasManager";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import { DraftPromptDialog } from "@/components/DraftPromptDialog";
 import { logBusinessEvent, logDetailedError } from "@/lib/errorHandling";
 import { SavingIndicator } from "@/components/ui/saving-indicator";
 import { handleFormKeyDown } from "@/lib/formGuard";
@@ -385,6 +386,11 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
     onRestore: applyDraft,
   });
 
+  // BLINDAGEM UX: nunca restaurar rascunho automaticamente.
+  // Antes: ao abrir "Nova OS" com rascunho salvo, o formulário era preenchido
+  // silenciosamente com dados de outro cliente (caso Moisés/Luciano #1422).
+  // Agora: usuário decide explicitamente via DraftPromptDialog.
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
 
   const veiculosDoCliente = veiculos.filter((v) => v.cliente_id === f.clienteId);
   const veiculoSelecionado = veiculos.find((v) => v.id === f.veiculoId);
@@ -399,22 +405,24 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
   const tiposServico = getTiposServico();
   const isAutoEletrica = tipoOficina === "auto_eletrica";
 
-  // INITIALIZATION: Handles open/close transitions and draft restore.
-  // NOTE: Initial edit data is loaded by the reducer initializer (no dispatch needed on first mount).
+  // INITIALIZATION: Handles open/close transitions and draft prompt.
   const initialOrdemRef = useRef(ordem?.id);
   
   useEffect(() => {
     if (!open) {
       draftRestoreAttemptedRef.current = false;
+      setDraftPromptOpen(false);
       if (!isEditing) {
-        clearDraft();
+        // NÃO limpa aqui — o rascunho fica disponível para retomar
+        // na próxima abertura via DraftPromptDialog.
       }
       return;
     }
 
     if (!isEditing && !draftRestoreAttemptedRef.current) {
       draftRestoreAttemptedRef.current = true;
-      if (restore()) {
+      if (hasDraft) {
+        setDraftPromptOpen(true);
         return;
       }
     }
@@ -572,6 +580,13 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
             p_valor_mao_obra: parseCurrency(f.valorServico),
           };
 
+          // Guarda de prejuízo (PR 1) — confirma antes de finalizar se custo > valor.
+          const { checkPrejuizoAndConfirm } = await import("@/lib/prejuizoGuard");
+          const podeSeguir = await checkPrejuizoAndConfirm(ordem.id, rpcPayload.p_valor_mao_obra as number | null);
+          if (!podeSeguir) {
+            toast.info("Finalização cancelada.", { description: "A OS continua aberta para ajuste de valores." });
+            return;
+          }
 
           const { data: rpcResult, error: rpcError } = await rpcWithRetry(
             "finalizar_os_atomica",
@@ -1137,6 +1152,13 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
             <div data-os-form-scroll className="overflow-y-auto flex-1 min-h-0 pb-2 -mx-1 px-1 overscroll-contain touch-pan-y">{FormContent}</div>
           </DrawerContent>
         </Drawer>
+        <DraftPromptDialog
+          open={draftPromptOpen}
+          label="ordem de serviço"
+          savedAt={lastSaved}
+          onResume={() => { restore(); setDraftPromptOpen(false); }}
+          onDiscard={() => { clearDraft(); setDraftPromptOpen(false); }}
+        />
         {ordem && <ResumoFiscalModal open={resumoFiscalOpen} onOpenChange={setResumoFiscalOpen} ordem={ordem} />}
         <OSFinalizadaModal open={osFinalizadaOpen} onOpenChange={setOsFinalizadaOpen} ordem={savedOrdem} oficinaNome={oficinaAtual?.nome} oficinaTelefone={oficinaAtual?.telefone} onEdit={() => { if (savedOrdem) setOsFinalizadaOpen(false); }} />
         {finalizarModalNode}
@@ -1193,6 +1215,13 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
           </div>
         </DialogContent>
       </Dialog>
+      <DraftPromptDialog
+        open={draftPromptOpen}
+        label="ordem de serviço"
+        savedAt={lastSaved}
+        onResume={() => { restore(); setDraftPromptOpen(false); }}
+        onDiscard={() => { clearDraft(); setDraftPromptOpen(false); }}
+      />
       {ordem && <ResumoFiscalModal open={resumoFiscalOpen} onOpenChange={setResumoFiscalOpen} ordem={ordem} />}
       <OSFinalizadaModal open={osFinalizadaOpen} onOpenChange={setOsFinalizadaOpen} ordem={savedOrdem} oficinaNome={oficinaAtual?.nome} oficinaTelefone={oficinaAtual?.telefone} onEdit={() => { if (savedOrdem) setOsFinalizadaOpen(false); }} />
       {finalizarModalNode}

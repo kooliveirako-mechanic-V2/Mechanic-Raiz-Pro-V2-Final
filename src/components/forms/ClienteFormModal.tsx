@@ -22,6 +22,7 @@ import { ClienteHistorico } from "@/components/clientes/ClienteHistorico";
 import { logBusinessEvent } from "@/lib/errorHandling";
 import { handleFormKeyDown } from "@/lib/formGuard";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import { DraftPromptDialog } from "@/components/DraftPromptDialog";
 
 // Schema de validação
 const clienteSchema = z.object({
@@ -119,7 +120,7 @@ export function ClienteFormModal({ open, onOpenChange, cliente, initialTab, onNo
   }), [nome, telefone, email, cpfCnpj, endereco, observacoes,
     veiculoTipo, veiculoMarca, veiculoModelo, veiculoAno, veiculoPlaca, veiculoKm]);
 
-  const { hasDraft, restore, clearDraft } = useAutoSave({
+  const { hasDraft, restore, clearDraft, lastSaved } = useAutoSave({
     key: `cliente-form-${oficinaAtual?.id || "global"}-new`,
     data: draftData,
     enabled: open && !isEditing,
@@ -127,7 +128,51 @@ export function ClienteFormModal({ open, onOpenChange, cliente, initialTab, onNo
   });
 
   const hasRestoredRef = useRef(false);
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
 
+  const resetClienteForm = useCallback(() => {
+    setNome("");
+    setTelefone("");
+    setEmail("");
+    setCpfCnpj("");
+    setEndereco("");
+    setObservacoes("");
+    setVeiculoTipo(tipoDefault);
+    setVeiculoMarca("");
+    setVeiculoModelo("");
+    setVeiculoAno("");
+    setVeiculoPlaca("");
+    setVeiculoKm("");
+    setErrors({});
+  }, [tipoDefault]);
+
+  const applyDraft = useCallback(() => {
+    const saved = restore() as typeof draftData | null;
+    if (saved) {
+      setNome(saved.nome || "");
+      setTelefone(saved.telefone || "");
+      setEmail(saved.email || "");
+      setCpfCnpj(saved.cpfCnpj || "");
+      setEndereco(saved.endereco || "");
+      setObservacoes(saved.observacoes || "");
+      setVeiculoTipo(saved.veiculoTipo || tipoDefault);
+      setVeiculoMarca(saved.veiculoMarca || "");
+      setVeiculoModelo(saved.veiculoModelo || "");
+      setVeiculoAno(saved.veiculoAno || "");
+      setVeiculoPlaca(saved.veiculoPlaca || "");
+      setVeiculoKm(saved.veiculoKm || "");
+      setErrors({});
+    }
+    setDraftPromptOpen(false);
+  }, [restore, tipoDefault]);
+
+  const discardDraft = useCallback(() => {
+    clearDraft();
+    resetClienteForm();
+    setDraftPromptOpen(false);
+  }, [clearDraft, resetClienteForm]);
+
+  // BLINDAGEM UX: nunca restaurar rascunho silenciosamente.
   useEffect(() => {
     if (cliente) {
       setNome(cliente.nome);
@@ -137,41 +182,18 @@ export function ClienteFormModal({ open, onOpenChange, cliente, initialTab, onNo
       setEndereco(cliente.endereco || "");
       setObservacoes(cliente.observacoes || "");
     } else if (open) {
-      // Tenta restaurar rascunho de novo cliente
       if (hasDraft && !hasRestoredRef.current) {
         hasRestoredRef.current = true;
-        const saved = restore() as typeof draftData | null;
-        if (saved) {
-          setNome(saved.nome || "");
-          setTelefone(saved.telefone || "");
-          setEmail(saved.email || "");
-          setCpfCnpj(saved.cpfCnpj || "");
-          setEndereco(saved.endereco || "");
-          setObservacoes(saved.observacoes || "");
-          setVeiculoTipo(saved.veiculoTipo || tipoDefault);
-          setVeiculoMarca(saved.veiculoMarca || "");
-          setVeiculoModelo(saved.veiculoModelo || "");
-          setVeiculoAno(saved.veiculoAno || "");
-          setVeiculoPlaca(saved.veiculoPlaca || "");
-          setVeiculoKm(saved.veiculoKm || "");
-          setErrors({});
-          return;
-        }
+        setDraftPromptOpen(true);
+      } else if (!hasRestoredRef.current) {
+        hasRestoredRef.current = true;
+        resetClienteForm();
       }
-      setNome("");
-      setTelefone("");
-      setEmail("");
-      setCpfCnpj("");
-      setEndereco("");
-      setObservacoes("");
-      setVeiculoTipo(tipoDefault);
-      setVeiculoMarca("");
-      setVeiculoModelo("");
-      setVeiculoAno("");
-      setVeiculoPlaca("");
-      setVeiculoKm("");
     }
-    if (!open) hasRestoredRef.current = false;
+    if (!open) {
+      hasRestoredRef.current = false;
+      setDraftPromptOpen(false);
+    }
     setErrors({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cliente, open]);
@@ -710,6 +732,16 @@ export function ClienteFormModal({ open, onOpenChange, cliente, initialTab, onNo
           </DrawerContent>
         </Drawer>
 
+        <DraftPromptDialog
+          open={draftPromptOpen}
+          label="cliente"
+          savedAt={lastSaved}
+          onResume={applyDraft}
+          onDiscard={discardDraft}
+        />
+
+
+
         <ConfirmDialog
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
@@ -748,6 +780,16 @@ export function ClienteFormModal({ open, onOpenChange, cliente, initialTab, onNo
           </div>
         </DialogContent>
       </Dialog>
+
+      <DraftPromptDialog
+        open={draftPromptOpen}
+        label="cliente"
+        savedAt={lastSaved}
+        onResume={applyDraft}
+        onDiscard={discardDraft}
+      />
+
+
 
       <ConfirmDialog
         open={deleteDialogOpen}

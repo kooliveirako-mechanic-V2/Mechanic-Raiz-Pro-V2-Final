@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 // parseCurrency handles Brazilian thousand separators correctly (e.g. "1.500,50" → 1500.5)
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import { DraftPromptDialog } from "@/components/DraftPromptDialog";
 import { rpcWithRetry } from "@/lib/rpcWithRetry";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
@@ -118,36 +119,46 @@ export function OSRapidaModal({ open, onOpenChange }: OSRapidaModalProps) {
     interval: 1500,
   });
 
-  // Restore draft when modal opens (only once per open cycle)
-  const hasRestoredRef = useRef(false);
+  // BLINDAGEM UX: nunca restaurar rascunho automaticamente.
+  // Usuário decide explicitamente via DraftPromptDialog.
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
+  const draftPromptShownRef = useRef(false);
+  
+
+  const applyDraft = useCallback(() => {
+    isRestoringDraftRef.current = true;
+    const saved = restore();
+    if (saved) {
+      setStep(saved.step || "cliente");
+      setClienteId(saved.clienteId || "");
+      setVeiculoId(saved.veiculoId || "");
+      setTiposServicoSelecionados(saved.tiposServicoSelecionados || []);
+      setMaoDeObraPorServico(saved.maoDeObraPorServico || {});
+      setIsCustomServico(saved.isCustomServico || false);
+      setCustomServico(saved.customServico || "");
+      setValorServico(saved.valorServico || "");
+      setResponsavelId(saved.responsavelId || "");
+      setOsMode(saved.osMode || "finalizar");
+      setPendingItens(saved.pendingItens || []);
+      setFormaPagamentoId(saved.formaPagamentoId || "");
+    }
+    queueMicrotask(() => {
+      isRestoringDraftRef.current = false;
+    });
+    setDraftPromptOpen(false);
+  }, [restore]);
+
   useEffect(() => {
-    if (open && hasDraft && !hasRestoredRef.current) {
-      hasRestoredRef.current = true;
-      isRestoringDraftRef.current = true;
-      const saved = restore();
-      if (saved) {
-        setStep(saved.step || "cliente");
-        setClienteId(saved.clienteId || "");
-        setVeiculoId(saved.veiculoId || "");
-        setTiposServicoSelecionados(saved.tiposServicoSelecionados || []);
-        setMaoDeObraPorServico(saved.maoDeObraPorServico || {});
-        setIsCustomServico(saved.isCustomServico || false);
-        setCustomServico(saved.customServico || "");
-        setValorServico(saved.valorServico || "");
-        setResponsavelId(saved.responsavelId || "");
-        setOsMode(saved.osMode || "finalizar");
-        setPendingItens(saved.pendingItens || []);
-        setFormaPagamentoId(saved.formaPagamentoId || "");
-      }
-      queueMicrotask(() => {
-        isRestoringDraftRef.current = false;
-      });
+    if (open && hasDraft && !draftPromptShownRef.current) {
+      draftPromptShownRef.current = true;
+      setDraftPromptOpen(true);
     }
     if (!open) {
-      hasRestoredRef.current = false;
+      draftPromptShownRef.current = false;
+      setDraftPromptOpen(false);
       isRestoringDraftRef.current = false;
     }
-  }, [open, hasDraft, restore]);
+  }, [open, hasDraft]);
 
   const resetForm = useCallback(() => {
     setStep("cliente");
@@ -988,6 +999,13 @@ export function OSRapidaModal({ open, onOpenChange }: OSRapidaModalProps) {
           </DrawerContent>
         </Drawer>
         {servicoRapidoRender}
+        <DraftPromptDialog
+          open={draftPromptOpen}
+          label="OS rápida"
+          savedAt={null}
+          onResume={applyDraft}
+          onDiscard={() => { clearDraft(); setDraftPromptOpen(false); }}
+        />
       </>
     );
   }
@@ -1020,6 +1038,13 @@ export function OSRapidaModal({ open, onOpenChange }: OSRapidaModalProps) {
         </DialogContent>
       </Dialog>
       {servicoRapidoRender}
+      <DraftPromptDialog
+        open={draftPromptOpen}
+        label="OS rápida"
+        savedAt={null}
+        onResume={applyDraft}
+        onDiscard={() => { clearDraft(); setDraftPromptOpen(false); }}
+      />
     </>
   );
 }

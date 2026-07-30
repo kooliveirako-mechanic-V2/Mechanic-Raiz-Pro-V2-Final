@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { DraftPromptDialog } from "@/components/DraftPromptDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,26 +58,46 @@ export function EntradaLoteModal({ open, onOpenChange }: EntradaLoteModalProps) 
     items: items.filter(i => !i.saved).map(({ saving, error, ...rest }) => rest),
   }), [items]);
 
-  const { hasDraft, restore, clearDraft } = useAutoSave({
+  const { hasDraft, restore, clearDraft, lastSaved } = useAutoSave({
     key: `entrada-lote-${oficinaAtual?.id || "global"}`,
     data: draftData,
     enabled: open,
     interval: 1500,
   });
 
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
+
+  const applyDraft = useCallback(() => {
+    const saved = restore() as { items?: LoteItem[] } | null;
+    if (saved?.items && saved.items.length > 0) {
+      setItems(saved.items.map(i => ({ ...i, saving: false, error: undefined })));
+    }
+    setDraftPromptOpen(false);
+  }, [restore]);
+
+  const discardDraft = useCallback(() => {
+    clearDraft();
+    setItems([]);
+    setDraftPromptOpen(false);
+    // adiciona um item novo em branco
+    setTimeout(() => addNewItem(), 0);
+  }, [clearDraft]);
+
+  // BLINDAGEM UX: nunca restaurar rascunho silenciosamente.
   useEffect(() => {
     if (open) {
       if (hasDraft && !hasRestoredRef.current) {
         hasRestoredRef.current = true;
-        const saved = restore() as { items?: LoteItem[] } | null;
-        if (saved?.items && saved.items.length > 0) {
-          setItems(saved.items.map(i => ({ ...i, saving: false, error: undefined })));
-          return;
-        }
+        setDraftPromptOpen(true);
+        return;
       }
-      if (items.length === 0) addNewItem();
+      if (!hasRestoredRef.current) {
+        hasRestoredRef.current = true;
+        if (items.length === 0) addNewItem();
+      }
     } else {
       hasRestoredRef.current = false;
+      setDraftPromptOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -419,6 +440,13 @@ export function EntradaLoteModal({ open, onOpenChange }: EntradaLoteModalProps) 
           </div>
         </div>
       </DialogContent>
+      <DraftPromptDialog
+        open={draftPromptOpen}
+        label="lote de entrada"
+        savedAt={lastSaved}
+        onResume={applyDraft}
+        onDiscard={discardDraft}
+      />
     </Dialog>
   );
 }

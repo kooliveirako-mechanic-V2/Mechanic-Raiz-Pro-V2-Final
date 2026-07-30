@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { DraftPromptDialog } from "@/components/DraftPromptDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { useOficina } from "@/contexts/OficinaContext";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ClienteSelectWithCreate } from "./ClienteSelectWithCreate";
 import { HistoricoEletricoTimeline } from "@/components/veiculos/HistoricoEletricoTimeline";
-import { Loader2, Car, Bike, Truck, Bus, Tractor, Trash2, Zap, FileText } from "lucide-react";
+import { Loader2, Car, Bike, Trash2, Zap, FileText } from "lucide-react";
 import { VehicleBrandModelSelect } from "./VehicleBrandModelSelect";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -22,7 +23,7 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 
 const veiculoSchema = z.object({
   cliente_id: z.string().min(1, "Selecione um cliente"),
-  tipo: z.enum(["carro", "moto", "caminhao", "van", "onibus", "agricola"]),
+  tipo: z.enum(["carro", "moto"]),
   marca: z.string().trim().min(1, "Marca é obrigatória").max(50, "Máximo 50 caracteres"),
   modelo: z.string().trim().min(1, "Modelo é obrigatório").max(50, "Máximo 50 caracteres"),
   ano: z.number().min(1900).max(new Date().getFullYear() + 1).optional().nullable(),
@@ -78,7 +79,7 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
   }), [clienteId, tipo, marca, modelo, ano, placa, kmAtual, chassi, cor, observacoes]);
 
 
-  const { hasDraft, restore, clearDraft } = useAutoSave({
+  const { hasDraft, restore, clearDraft, lastSaved } = useAutoSave({
     key: `veiculo-form-${oficinaAtual?.id || "global"}-new`,
     data: draftData,
     enabled: open && !isEditing,
@@ -86,7 +87,47 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
   });
 
   const hasRestoredRef = useRef(false);
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
 
+  const resetVeiculoForm = useCallback(() => {
+    setClienteId(clienteIdPadrao || "");
+    setTipo(tipoDefault);
+    setMarca("");
+    setModelo("");
+    setAno("");
+    setPlaca("");
+    setKmAtual("");
+    setChassi("");
+    setCor("");
+    setObservacoes("");
+    setErrors({});
+  }, [clienteIdPadrao, tipoDefault]);
+
+  const applyDraft = useCallback(() => {
+    const saved = restore() as typeof draftData | null;
+    if (saved) {
+      setClienteId(saved.clienteId || clienteIdPadrao || "");
+      setTipo(saved.tipo || tipoDefault);
+      setMarca(saved.marca || "");
+      setModelo(saved.modelo || "");
+      setAno(saved.ano || "");
+      setPlaca(saved.placa || "");
+      setKmAtual(saved.kmAtual || "");
+      setChassi(saved.chassi || "");
+      setCor(saved.cor || "");
+      setObservacoes(saved.observacoes || "");
+      setErrors({});
+    }
+    setDraftPromptOpen(false);
+  }, [restore, clienteIdPadrao, tipoDefault]);
+
+  const discardDraft = useCallback(() => {
+    clearDraft();
+    resetVeiculoForm();
+    setDraftPromptOpen(false);
+  }, [clearDraft, resetVeiculoForm]);
+
+  // BLINDAGEM UX: nunca restaurar rascunho silenciosamente.
   useEffect(() => {
     if (veiculo) {
       setClienteId(veiculo.cliente_id);
@@ -99,44 +140,23 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
       setChassi(veiculo.chassi || "");
       setCor((veiculo as any).cor || "");
       setObservacoes(veiculo.observacoes || "");
-
     } else if (open) {
-      // Tenta restaurar rascunho de novo veículo
       if (hasDraft && !hasRestoredRef.current) {
         hasRestoredRef.current = true;
-        const saved = restore() as typeof draftData | null;
-        if (saved) {
-          setClienteId(saved.clienteId || clienteIdPadrao || "");
-          setTipo(saved.tipo || tipoDefault);
-          setMarca(saved.marca || "");
-          setModelo(saved.modelo || "");
-          setAno(saved.ano || "");
-          setPlaca(saved.placa || "");
-          setKmAtual(saved.kmAtual || "");
-          setChassi(saved.chassi || "");
-          setCor(saved.cor || "");
-          setObservacoes(saved.observacoes || "");
-
-          setErrors({});
-          return;
-        }
+        setDraftPromptOpen(true);
+      } else if (!hasRestoredRef.current) {
+        hasRestoredRef.current = true;
+        resetVeiculoForm();
       }
-      setClienteId(clienteIdPadrao || "");
-      setTipo(tipoDefault);
-      setMarca("");
-      setModelo("");
-      setAno("");
-      setPlaca("");
-      setKmAtual("");
-      setChassi("");
-      setCor("");
-      setObservacoes("");
-
     }
-    if (!open) hasRestoredRef.current = false;
+    if (!open) {
+      hasRestoredRef.current = false;
+      setDraftPromptOpen(false);
+    }
     setErrors({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [veiculo, clienteIdPadrao, open, tipoDefault]);
+
 
   const scrollToFirstError = useCallback((fieldErrors: Record<string, string>) => {
     if (document.activeElement instanceof HTMLElement) {
@@ -286,7 +306,7 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
               <span>{showMoto ? "Moto" : "Carro"}</span>
             </div>
           ) : (
-            <Select value={tipo} onValueChange={(v) => setTipo(v as TipoVeiculo)}>
+            <Select value={tipo} onValueChange={(v) => setTipo(v as "carro" | "moto")}>
               <SelectTrigger className="h-12">
                 <SelectValue />
               </SelectTrigger>
@@ -299,26 +319,6 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
                 <SelectItem value="moto">
                   <div className="flex items-center gap-2">
                     <Bike className="w-4 h-4" /> Moto
-                  </div>
-                </SelectItem>
-                <SelectItem value="caminhao">
-                  <div className="flex items-center gap-2">
-                    <Truck className="w-4 h-4" /> Caminhão
-                  </div>
-                </SelectItem>
-                <SelectItem value="van">
-                  <div className="flex items-center gap-2">
-                    <Car className="w-4 h-4" /> Van
-                  </div>
-                </SelectItem>
-                <SelectItem value="onibus">
-                  <div className="flex items-center gap-2">
-                    <Bus className="w-4 h-4" /> Ônibus
-                  </div>
-                </SelectItem>
-                <SelectItem value="agricola">
-                  <div className="flex items-center gap-2">
-                    <Tractor className="w-4 h-4" /> Agrícola
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -515,6 +515,16 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
           </DrawerContent>
         </Drawer>
 
+        <DraftPromptDialog
+          open={draftPromptOpen}
+          label="veículo"
+          savedAt={lastSaved}
+          onResume={applyDraft}
+          onDiscard={discardDraft}
+        />
+
+
+
         <ConfirmDialog
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
@@ -544,6 +554,16 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
           </div>
         </DialogContent>
       </Dialog>
+
+      <DraftPromptDialog
+        open={draftPromptOpen}
+        label="veículo"
+        savedAt={lastSaved}
+        onResume={applyDraft}
+        onDiscard={discardDraft}
+      />
+
+
 
       <ConfirmDialog
         open={deleteDialogOpen}
