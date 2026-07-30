@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { MediaThumbnail } from "@/components/ui/media-thumbnail";
-import { resolveFotoUrl } from "@/lib/storage/fotos";
+import { FotoOSImg, FotoOSThumb } from "@/components/ui/foto-os";
+import { buildFotoUploadPath } from "@/lib/storage/fotos";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Camera, X, CheckCircle2, Loader2, ImagePlus, ImageIcon } from "lucide-react";
@@ -45,7 +45,11 @@ export function ConclusaoSection({
         }
 
         const fileName = safeFileName(file.name, "saida");
-        const filePath = `${ordemId || "temp"}/${fileName}`;
+        const filePath = await buildFotoUploadPath(ordemId, fileName);
+        if (!filePath) {
+          toast.error("Sessão expirada — faça login novamente para enviar fotos.");
+          continue;
+        }
 
         const { error: uploadError } = await supabase.storage
           .from("os-fotos")
@@ -57,13 +61,8 @@ export function ConclusaoSection({
           continue;
         }
 
-        const { data: urlData } = supabase.storage
-          .from("os-fotos")
-          .getPublicUrl(filePath);
-
-        if (urlData) {
-          newFotos.push(urlData.publicUrl);
-        }
+        // Persiste o PATH RELATIVO (bucket privado + signed URL na leitura)
+        newFotos.push(filePath);
       }
 
       if (newFotos.length > 0) {
@@ -125,9 +124,9 @@ export function ConclusaoSection({
             </span>
             <div className="grid grid-cols-2 gap-1">
               {fotosEntrada.slice(0, 4).map((foto, i) => (
-                <img
+                <FotoOSImg
                   key={i}
-                  src={resolveFotoUrl(foto)}
+                  foto={foto}
                   alt={`Antes ${i + 1}`}
                   className="w-full aspect-square object-cover rounded-md"
                 />
@@ -140,9 +139,9 @@ export function ConclusaoSection({
             </span>
             <div className="grid grid-cols-2 gap-1">
               {fotosSaida.slice(0, 4).map((foto, i) => (
-                <img
+                <FotoOSImg
                   key={i}
-                  src={resolveFotoUrl(foto)}
+                  foto={foto}
                   alt={`Depois ${i + 1}`}
                   className="w-full aspect-square object-cover rounded-md"
                 />
@@ -180,8 +179,8 @@ export function ConclusaoSection({
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 md:gap-3">
           {fotosSaida.map((foto, index) => (
             <div key={index} className="relative group aspect-square">
-              <MediaThumbnail
-                src={resolveFotoUrl(foto)}
+              <FotoOSThumb
+                foto={foto}
                 alt={`Foto conclusão ${index + 1}`}
                 className="rounded-xl border border-success/30"
               />
