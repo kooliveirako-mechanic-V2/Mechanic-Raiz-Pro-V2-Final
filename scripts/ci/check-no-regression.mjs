@@ -61,6 +61,9 @@ const ALLOW_OLD_REF = new Set([
   "supabase/migrations/20260624180958_7b66853f-d970-416b-8b91-0119b19cd07d.sql",
   // apenas comentário (linha 3); o job que esta migration agenda aponta para o NOVO
   "supabase/migrations/20260726232500_fix_sentinela_cron_novo.sql",
+  // teste do toFotoPath: precisa de uma URL legada do host ANTIGO como INPUT
+  // para provar que a extração de path funciona com dado legado. Não é config.
+  "src/test/fotos.test.ts",
 ]);
 const walk = (dir) => {
   if (!existsSync(join(ROOT, dir))) return;
