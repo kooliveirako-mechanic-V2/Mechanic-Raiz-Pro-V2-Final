@@ -76,6 +76,33 @@ export async function getSignedFotoUrl(
   }
 }
 
+/**
+ * Monta o path de upload no bucket `os-fotos`.
+ *
+ * - Com OS já criada: `<ordemId>/<fileName>` — autorizável pela policy que
+ *   compara o 1º segmento com `ordens_servico.id` da oficina do usuário.
+ * - Sem OS ainda (formulário novo): `temp/<user_id>/<fileName>`.
+ *
+ * O `user_id` no path é o que torna o upload temporário autorizável quando o
+ * bucket virar privado: sem ele, `temp/` é um namespace compartilhado por todos
+ * os usuários autenticados e nenhuma policy de SELECT consegue escopá-lo por
+ * dono — o usuário não veria nem a foto que acabou de subir.
+ *
+ * Retorna null se não houver sessão e não houver ordemId (nada a autorizar).
+ */
+export async function buildFotoUploadPath(
+  ordemId: string | undefined | null,
+  fileName: string
+): Promise<string | null> {
+  if (ordemId) return `${ordemId}/${fileName}`;
+
+  const { data } = await supabase.auth.getSession();
+  const uid = data.session?.user?.id;
+  if (!uid) return null;
+
+  return `temp/${uid}/${fileName}`;
+}
+
 /** Assina várias fotos de uma vez, preservando a ordem. */
 export async function getSignedFotoUrls(
   values: Array<string | null | undefined>,

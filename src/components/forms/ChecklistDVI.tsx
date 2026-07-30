@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { FotoOSThumb } from "@/components/ui/foto-os";
+import { buildFotoUploadPath } from "@/lib/storage/fotos";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -179,7 +180,11 @@ export function ChecklistDVI({
         }
 
         const fileName = safeFileName(file.name);
-        const filePath = `${ordemId || "temp"}/${fileName}`;
+        const filePath = await buildFotoUploadPath(ordemId, fileName);
+        if (!filePath) {
+          toast.error("Sessão expirada — faça login novamente para enviar fotos.");
+          continue;
+        }
 
         const { error: uploadError } = await supabase.storage
           .from("os-fotos")

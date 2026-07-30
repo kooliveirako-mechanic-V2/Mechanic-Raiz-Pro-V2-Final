@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { FotoOSImg, FotoOSThumb } from "@/components/ui/foto-os";
+import { buildFotoUploadPath } from "@/lib/storage/fotos";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Camera, X, CheckCircle2, Loader2, ImagePlus, ImageIcon } from "lucide-react";
@@ -44,7 +45,11 @@ export function ConclusaoSection({
         }
 
         const fileName = safeFileName(file.name, "saida");
-        const filePath = `${ordemId || "temp"}/${fileName}`;
+        const filePath = await buildFotoUploadPath(ordemId, fileName);
+        if (!filePath) {
+          toast.error("Sessão expirada — faça login novamente para enviar fotos.");
+          continue;
+        }
 
         const { error: uploadError } = await supabase.storage
           .from("os-fotos")

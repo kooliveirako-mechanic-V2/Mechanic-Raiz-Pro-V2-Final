@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { validateFile, safeFileName } from "@/lib/uploadValidation";
 import { FotoOSThumb } from "@/components/ui/foto-os";
+import { buildFotoUploadPath } from "@/lib/storage/fotos";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -268,7 +269,11 @@ export function ElectricDVIWizard({
           continue;
         }
         const fileName = safeFileName(file.name);
-        const filePath = `${ordemId || "temp"}/${fileName}`;
+        const filePath = await buildFotoUploadPath(ordemId, fileName);
+        if (!filePath) {
+          toast.error("Sessão expirada — faça login novamente para enviar fotos.");
+          continue;
+        }
 
         const { error: uploadError } = await supabase.storage
           .from("os-fotos")
