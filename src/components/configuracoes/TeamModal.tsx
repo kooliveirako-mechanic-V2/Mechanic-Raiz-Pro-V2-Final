@@ -44,6 +44,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOficina } from "@/contexts/OficinaContext";
 import { useUserRole, AppRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
+import { getBaseUrl } from "@/utils/url";
 
 interface TeamModalProps {
   open: boolean;
@@ -111,7 +112,7 @@ export function TeamModal({ open, onOpenChange }: TeamModalProps) {
           oficina_id: oficinaAtual.id,
           email: email.toLowerCase().trim(),
           role,
-          base_url: window.location.origin,
+          base_url: getBaseUrl(),
         },
       });
 
