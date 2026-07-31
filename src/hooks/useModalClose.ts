@@ -88,11 +88,58 @@ function isBlank(v: unknown): boolean {
 /**
  * Igualdade estrutural com as regras do falso-sujo. Arrays e objetos são
  * comparados recursivamente — um item adicionado à lista conta como sujo.
+ *
+ * Set/Map/Date têm tratamento próprio: cair no ramo genérico de `Object.keys()`
+ * retornaria `[]` para os três (falso-NEGATIVO silencioso — dois Set diferentes
+ * seriam "iguais" e o aviso nunca dispararia). Seleção múltipla via Set é padrão
+ * comum (importação, seleção de itens, filtros), então o suporte vive no
+ * comparador, não em cada formulário.
+ *
+ * Assume estrutura ACÍCLICA — dados de formulário são planos; não há proteção
+ * contra referência cíclica.
  */
 export function isEqualForDirty(a: unknown, b: unknown): boolean {
+  try {
+    return compareForDirty(a, b);
+  } catch {
+    // Fallback SEGURO: na dúvida, considera sujo (retorna "diferente") para o
+    // modal PERGUNTAR em vez de fechar calado. Um aviso a mais é ruído; um
+    // fechamento silencioso é perda de trabalho. Cobre objeto profundo
+    // mal-formado, getter que lança, proxy hostil, recursão excedida.
+    return false;
+  }
+}
+
+function compareForDirty(a: unknown, b: unknown): boolean {
   if (isBlank(a) && isBlank(b)) return true;
   if (a === b) return true;
   if (typeof a !== typeof b) return false;
+
+  // Date — comparar pelo timestamp, senão Object.keys() = []
+  if (a instanceof Date || b instanceof Date) {
+    if (!(a instanceof Date) || !(b instanceof Date)) return false;
+    return a.getTime() === b.getTime();
+  }
+
+  // Set — ordem não importa: mesmo tamanho e todo elemento de `a` está em `b`
+  if (a instanceof Set || b instanceof Set) {
+    if (!(a instanceof Set) || !(b instanceof Set)) return false;
+    if (a.size !== b.size) return false;
+    for (const v of a) {
+      if (!b.has(v)) return false;
+    }
+    return true;
+  }
+
+  // Map — mesmo tamanho e cada chave com valor recursivamente igual
+  if (a instanceof Map || b instanceof Map) {
+    if (!(a instanceof Map) || !(b instanceof Map)) return false;
+    if (a.size !== b.size) return false;
+    for (const [k, v] of a) {
+      if (!b.has(k) || !isEqualForDirty(v, b.get(k))) return false;
+    }
+    return true;
+  }
 
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;

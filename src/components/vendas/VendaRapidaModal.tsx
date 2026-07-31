@@ -1,5 +1,7 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { DraftPromptDialog } from "@/components/DraftPromptDialog";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -118,6 +120,20 @@ export function VendaRapidaModal({ open, onOpenChange }: VendaRapidaModalProps) 
       setFormaPagamentoNome("Dinheiro");
     }
   }, [formasPagamento]);
+
+  // Guard ativo em TODO passo menos "sucesso" (venda já gravada, nada a perder).
+  // NÃO excluir "itens": é justamente onde o carrinho é montado — excluí-lo criava
+  // fechamento calado com aparência de proteção. "Carrinho vazio" já é tratado
+  // pelo isDirty (nada mudou vs snapshot ⇒ fecha direto), não por `enabled`.
+  // `step` é de UI e sai da comparação de sujo.
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: draftData,
+    onOpenChange,
+    onReset: resetVenda,
+    ignoreKeys: ["step"],
+    enabled: step !== "sucesso",
+  });
 
   const applyDraft = useCallback(() => {
     const saved = restore() as typeof draftData | null;
@@ -398,7 +414,7 @@ export function VendaRapidaModal({ open, onOpenChange }: VendaRapidaModalProps) 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg max-h-[90dvh] flex flex-col p-0 gap-0">
         <DialogHeader className="p-4 border-b border-border flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -786,7 +802,7 @@ export function VendaRapidaModal({ open, onOpenChange }: VendaRapidaModalProps) 
                 <Button variant="default" onClick={handleNovaVenda}>
                   Nova venda
                 </Button>
-                <Button variant="ghost" onClick={() => onOpenChange(false)}>
+                <Button variant="ghost" onClick={() => handleOpenChange(false)}>
                   Fechar
                 </Button>
               </div>
@@ -805,6 +821,15 @@ export function VendaRapidaModal({ open, onOpenChange }: VendaRapidaModalProps) 
         savedAt={lastSaved}
         onResume={applyDraft}
         onDiscard={discardDraft}
+      />
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Sair sem finalizar a venda?"
+        description="Você tem itens no carrinho. Seu rascunho fica guardado para você retomar depois."
+        confirmText="Sair"
+        cancelText="Continuar venda"
+        onConfirm={confirmClose}
       />
     </Dialog>
   );

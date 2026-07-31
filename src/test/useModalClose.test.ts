@@ -44,6 +44,36 @@ describe("isEqualForDirty — detecta mudança real", () => {
   });
 });
 
+describe("isEqualForDirty — Set/Map/Date (prova da morte do falso-negativo)", () => {
+  it("dois Set com MESMO conteúdo → limpo (ordem não importa)", () => {
+    expect(isEqualForDirty(new Set([1, 2, 3]), new Set([3, 2, 1]))).toBe(true);
+  });
+
+  it("dois Set com conteúdo DIFERENTE → sujo", () => {
+    // Este é o caso que Object.keys() dava como igual (falso-negativo).
+    expect(isEqualForDirty(new Set([1, 2]), new Set([1, 2, 3]))).toBe(false);
+    expect(isEqualForDirty(new Set(["a"]), new Set(["b"]))).toBe(false);
+  });
+
+  it("Set vazio vs Set com item → sujo", () => {
+    expect(isEqualForDirty(new Set(), new Set(["x"]))).toBe(false);
+  });
+
+  it("Map igual → limpo; valor alterado → sujo", () => {
+    expect(isEqualForDirty(new Map([["a", 1]]), new Map([["a", 1]]))).toBe(true);
+    expect(isEqualForDirty(new Map([["a", 1]]), new Map([["a", 2]]))).toBe(false);
+  });
+
+  it("Date pelo timestamp, não por Object.keys()", () => {
+    expect(isEqualForDirty(new Date("2026-01-01"), new Date("2026-01-01"))).toBe(true);
+    expect(isEqualForDirty(new Date("2026-01-01"), new Date("2026-02-01"))).toBe(false);
+  });
+
+  it("Set comparado com não-Set → sujo (tipos divergem)", () => {
+    expect(isEqualForDirty(new Set([1]), [1])).toBe(false);
+  });
+});
+
 describe("isEqualForDirty — estruturas aninhadas", () => {
   it("item adicionado à lista conta como sujo", () => {
     expect(isEqualForDirty({ itens: [{ id: 1 }] }, { itens: [] })).toBe(false);
