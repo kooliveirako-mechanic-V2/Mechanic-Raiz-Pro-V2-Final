@@ -3,6 +3,8 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { setSentryUser, clearSentryUser } from "@/lib/sentry";
 import { getBaseUrl } from "@/utils/url";
+import { clearAllDrafts } from "@/hooks/useAutoSave";
+import { clearAllFormDrafts } from "@/lib/formGuard";
 
 interface AuthContextType {
   user: User | null;
@@ -182,13 +184,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Limpar tudo do navegador para evitar autofill/cache de sessão antiga
       Object.keys(localStorage).forEach((k) => {
-        // mechanic_draft_ = rascunhos de formulário (useAutoSave). Contêm valores
-        // financeiros, fornecedor e observações contábeis — não podem sobreviver
-        // à troca de conta num dispositivo compartilhado (balcão da oficina).
-        if (k.startsWith("sb-") || k.includes("supabase") || k.includes("mrp_") || k.startsWith("mechanic_draft_") || k === "oficinaAtual") {
+        if (k.startsWith("sb-") || k.includes("supabase") || k.includes("mrp_") || k === "oficinaAtual") {
           localStorage.removeItem(k);
         }
       });
+
+      // Rascunhos: cada módulo expõe a própria limpeza, em vez de duplicar
+      // prefixos literais aqui. Assim, um terceiro sistema de rascunho é coberto
+      // por construção — basta chamar sua função — e não por lembrança.
+      // Contêm valor, fornecedor e observações contábeis: não podem sobreviver à
+      // troca de conta num dispositivo compartilhado (PC do balcão da oficina).
+      clearAllDrafts();      // prefixo mechanic_draft_ (useAutoSave)
+      clearAllFormDrafts();  // prefixo form_draft_     (formGuard)
       Object.keys(sessionStorage).forEach((k) => {
         if (k.startsWith("sb-") || k.includes("supabase") || k.includes("mrp_")) {
           sessionStorage.removeItem(k);
