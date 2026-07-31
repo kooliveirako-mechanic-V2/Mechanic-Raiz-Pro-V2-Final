@@ -176,6 +176,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // Rascunhos PRIMEIRO, isolados. É o dado mais sensível (vaza entre contas no
+    // PC do balcão) e não pode depender do resto do signOut terminar bem. Se o
+    // bloco de limpeza abaixo lançar (localStorage bloqueado, etc.), a limpeza de
+    // rascunho já aconteceu. Cada módulo expõe a própria função — terceiro
+    // prefixo fica coberto por construção, não por lembrança.
+    try {
+      clearAllDrafts();      // prefixo mechanic_draft_ (useAutoSave)
+      clearAllFormDrafts();  // prefixo form_draft_     (formGuard)
+    } catch (e) {
+      console.warn("[Auth] draft cleanup warn:", e);
+    }
+
     try {
       await supabase.auth.signOut();
     } catch (e) {
@@ -188,14 +200,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem(k);
         }
       });
-
-      // Rascunhos: cada módulo expõe a própria limpeza, em vez de duplicar
-      // prefixos literais aqui. Assim, um terceiro sistema de rascunho é coberto
-      // por construção — basta chamar sua função — e não por lembrança.
-      // Contêm valor, fornecedor e observações contábeis: não podem sobreviver à
-      // troca de conta num dispositivo compartilhado (PC do balcão da oficina).
-      clearAllDrafts();      // prefixo mechanic_draft_ (useAutoSave)
-      clearAllFormDrafts();  // prefixo form_draft_     (formGuard)
       Object.keys(sessionStorage).forEach((k) => {
         if (k.startsWith("sb-") || k.includes("supabase") || k.includes("mrp_")) {
           sessionStorage.removeItem(k);
