@@ -283,7 +283,7 @@ export function DadosFiscaisModal({ open, onOpenChange }: DadosFiscaisModalProps
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
             >
               Cancelar
             </Button>

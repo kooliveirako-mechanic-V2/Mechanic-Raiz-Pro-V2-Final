@@ -166,7 +166,7 @@ export function CatalogoServicoFormModal({ open, onOpenChange, servico }: Props)
       </div>
 
       <div className="flex gap-2 pt-2">
-        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1 h-11">
+        <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} className="flex-1 h-11">
           Cancelar
         </Button>
         <Button type="submit" disabled={loading} className="flex-1 h-11">

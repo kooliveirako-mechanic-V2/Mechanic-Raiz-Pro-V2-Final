@@ -175,9 +175,9 @@ export function OficinaFormModal({ open, onOpenChange }: OficinaFormModalProps) 
       {/* Actions */}
       <div className="flex gap-3 pt-4 pb-2">
         <Button 
-          type="button" 
-          variant="outline" 
-          onClick={() => onOpenChange(false)} 
+          type="button"
+          variant="outline"
+          onClick={() => handleOpenChange(false)}
           className="flex-1 h-12 text-base"
         >
           Cancelar
