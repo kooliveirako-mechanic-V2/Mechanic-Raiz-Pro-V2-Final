@@ -20,6 +20,8 @@ import {
   detectDuplicates,
   downloadCSVTemplate,
 } from "@/lib/contactImport";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ImportContactsModalProps {
   open: boolean;
@@ -213,14 +215,26 @@ export function ImportContactsModal({ open, onOpenChange }: ImportContactsModalP
     setStep("done");
   };
 
-  const handleClose = () => {
+  const resetImport = () => {
     setContacts([]);
     setStep("source");
     setImportProgress(0);
     setReport(null);
     setSourceType(null);
-    onOpenChange(false);
   };
+
+  // Confirm-only, sem useAutoSave (contatos vêm de File/API, não serializam em
+  // rascunho). `enabled` sobre step observável: só confirma quando há contatos
+  // carregados e ainda não importados — em "source" não há o que perder.
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: { contacts },
+    onOpenChange,
+    onReset: resetImport,
+    enabled: contacts.length > 0 && step !== "importing" && step !== "done",
+  });
+
+  const handleClose = () => handleOpenChange(false);
 
   const copyReport = () => {
     if (!report) return;
@@ -593,6 +607,15 @@ export function ImportContactsModal({ open, onOpenChange }: ImportContactsModalP
           </div>
         )}
       </DialogContent>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Descartar importação?"
+        description="Você carregou contatos e ainda não importou. A lista revisada será descartada."
+        confirmText="Descartar"
+        cancelText="Continuar importação"
+        onConfirm={confirmClose}
+      />
     </Dialog>
   );
 }

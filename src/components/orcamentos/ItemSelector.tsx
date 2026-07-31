@@ -14,6 +14,8 @@ import { Search, Package, Wrench, Plus, Minus, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useOficinaLabels } from "@/hooks/useOficinaLabels";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ItemSelectorProps {
   open: boolean;
@@ -101,12 +103,22 @@ export function ItemSelector({ open, onOpenChange, onAddItem }: ItemSelectorProp
     setValorMaoObra("");
   };
 
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    // tipo/quantidade têm default mas são escolha real; ficam na comparação.
+    // search é filtro de busca (volátil), não dado do usuário.
+    data: { tipo, selectedItem, quantidade, valorUnitario, custoUnitario, nomeManual, valorMaoObra, search },
+    onOpenChange,
+    onReset: resetForm,
+    ignoreKeys: ["search"],
+  });
+
   const isValid = tipo === "servico"
     ? nomeManual && valorUnitario
     : (selectedItem || nomeManual) && valorUnitario && quantidade > 0;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o); }}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -290,7 +302,7 @@ export function ItemSelector({ open, onOpenChange, onAddItem }: ItemSelectorProp
           )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="button" onClick={handleAddItem} disabled={!isValid}>
@@ -299,6 +311,15 @@ export function ItemSelector({ open, onOpenChange, onAddItem }: ItemSelectorProp
           </div>
         </div>
       </DialogContent>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Descartar item?"
+        description="Você preencheu dados deste item e não adicionou. As informações serão descartadas."
+        confirmText="Descartar"
+        cancelText="Continuar preenchendo"
+        onConfirm={confirmClose}
+      />
     </Dialog>
   );
 }
