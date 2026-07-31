@@ -182,7 +182,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Limpar tudo do navegador para evitar autofill/cache de sessão antiga
       Object.keys(localStorage).forEach((k) => {
-        if (k.startsWith("sb-") || k.includes("supabase") || k.includes("mrp_") || k === "oficinaAtual") {
+        // mechanic_draft_ = rascunhos de formulário (useAutoSave). Contêm valores
+        // financeiros, fornecedor e observações contábeis — não podem sobreviver
+        // à troca de conta num dispositivo compartilhado (balcão da oficina).
+        if (k.startsWith("sb-") || k.includes("supabase") || k.includes("mrp_") || k.startsWith("mechanic_draft_") || k === "oficinaAtual") {
           localStorage.removeItem(k);
         }
       });

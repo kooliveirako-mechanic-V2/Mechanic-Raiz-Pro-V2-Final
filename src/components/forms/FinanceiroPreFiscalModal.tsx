@@ -19,6 +19,10 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { handleFormKeyDown } from "@/lib/formGuard";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useModalClose } from "@/hooks/useModalClose";
+import { useAutoSave } from "@/hooks/useAutoSave";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DraftPromptDialog } from "@/components/DraftPromptDialog";
 
 interface FinanceiroPreFiscalModalProps {
   open: boolean;
@@ -61,6 +65,75 @@ export function FinanceiroPreFiscalModal({ open, onOpenChange, tipo: tipoInicial
   const showCategoriaCustom = isCustomCategoryMode;
   const showFormaPagamentoCustom = isCustomPaymentMode;
 
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
+
+  // Objeto único de dados: serve de snapshot (useModalClose) e de rascunho (useAutoSave).
+  const formData = {
+    tipo,
+    valor,
+    data,
+    descricao,
+    categoriaId,
+    categoriaCustom,
+    centroCustoId,
+    fornecedorId,
+    formaPagamentoId,
+    formaPagamentoCustom,
+    status,
+    classificacao,
+    dataCompetencia,
+    dataPagamento,
+    recorrente,
+    recorrenciaTipo,
+    observacoesContador,
+    numeroDocumento,
+    categoriaTipo,
+    // voláteis (ver ignoreKeys abaixo) — ficam no rascunho, fora da comparação de sujo
+    isCustomCategoryMode,
+    isCustomPaymentMode,
+    showAdvanced,
+  };
+
+  const { hasDraft, lastSaved, restore, clearDraft } = useAutoSave({
+    key: "financeiro-prefiscal",
+    data: formData,
+    enabled: open,
+  });
+
+  const restoreDraft = (d: typeof formData) => {
+    setTipo(d.tipo);
+    setValor(d.valor);
+    setData(d.data);
+    setDescricao(d.descricao);
+    setCategoriaId(d.categoriaId);
+    setCategoriaCustom(d.categoriaCustom);
+    setCentroCustoId(d.centroCustoId);
+    setFornecedorId(d.fornecedorId);
+    setFormaPagamentoId(d.formaPagamentoId);
+    setFormaPagamentoCustom(d.formaPagamentoCustom);
+    setStatus(d.status);
+    setClassificacao(d.classificacao);
+    setDataCompetencia(d.dataCompetencia);
+    setDataPagamento(d.dataPagamento);
+    setRecorrente(d.recorrente);
+    setRecorrenciaTipo(d.recorrenciaTipo);
+    setObservacoesContador(d.observacoesContador);
+    setNumeroDocumento(d.numeroDocumento);
+    setCategoriaTipo(d.categoriaTipo);
+    setIsCustomCategoryMode(d.isCustomCategoryMode);
+    setIsCustomPaymentMode(d.isCustomPaymentMode);
+    setShowAdvanced(d.showAdvanced);
+  };
+
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: formData,
+    onOpenChange,
+    // `data` nasce com a data de hoje; as 3 flags são de UI. Sem excluí-las, o
+    // modal abriria "sujo" e perguntaria a quem só abriu e fechou.
+    ignoreKeys: ["data", "isCustomCategoryMode", "isCustomPaymentMode", "showAdvanced"],
+  });
+
   useEffect(() => {
     if (tipoInicial) setTipo(tipoInicial);
     if (!open) {
@@ -87,6 +160,12 @@ export function FinanceiroPreFiscalModal({ open, onOpenChange, tipo: tipoInicial
       setShowAdvanced(false);
     }
   }, [tipoInicial, open]);
+
+  // Ao abrir: se há rascunho válido, oferece retomar (nunca aplica em silêncio).
+  useEffect(() => {
+    if (open && hasDraft) setDraftPromptOpen(true);
+    if (!open) setDraftPromptOpen(false);
+  }, [open, hasDraft]);
 
   // Update status when tipo changes
   useEffect(() => {
@@ -128,7 +207,10 @@ export function FinanceiroPreFiscalModal({ open, onOpenChange, tipo: tipoInicial
     };
 
     createRegistro(input, {
-      onSuccess: () => onOpenChange(false),
+      onSuccess: () => {
+        clearDraft(); // some com o rascunho só após salvar de verdade
+        onOpenChange(false);
+      },
     });
   };
 
@@ -567,29 +649,57 @@ export function FinanceiroPreFiscalModal({ open, onOpenChange, tipo: tipoInicial
     </div>
   );
 
+  // Diálogos compartilhados entre mobile e desktop — mesma lógica nos dois.
+  const SharedDialogs = (
+    <>
+      <DraftPromptDialog
+        open={draftPromptOpen}
+        label="lançamento financeiro"
+        savedAt={lastSaved}
+        onResume={() => { const d = restore(); if (d) restoreDraft(d); setDraftPromptOpen(false); }}
+        onDiscard={() => { clearDraft(); setDraftPromptOpen(false); }}
+      />
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Sair sem salvar?"
+        description="Você tem dados não salvos neste lançamento. Seu rascunho fica guardado para você retomar depois."
+        confirmText="Sair"
+        cancelText="Continuar editando"
+        onConfirm={confirmClose}
+      />
+    </>
+  );
+
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="px-4 pb-6 max-h-[90dvh]">
-          <DrawerHeader className="text-left px-0">
-            <DrawerTitle className="flex items-center gap-2 text-lg">
-              {HeaderContent}
-            </DrawerTitle>
-          </DrawerHeader>
-          <div className="overflow-y-auto">{FormContent}</div>
-        </DrawerContent>
-      </Drawer>
+      <>
+        <Drawer open={open} onOpenChange={handleOpenChange}>
+          <DrawerContent className="px-4 pb-6 max-h-[90dvh]">
+            <DrawerHeader className="text-left px-0">
+              <DrawerTitle className="flex items-center gap-2 text-lg">
+                {HeaderContent}
+              </DrawerTitle>
+            </DrawerHeader>
+            <div className="overflow-y-auto">{FormContent}</div>
+          </DrawerContent>
+        </Drawer>
+        {SharedDialogs}
+      </>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">{HeaderContent}</DialogTitle>
-        </DialogHeader>
-        {FormContent}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">{HeaderContent}</DialogTitle>
+          </DialogHeader>
+          {FormContent}
+        </DialogContent>
+      </Dialog>
+      {SharedDialogs}
+    </>
   );
 }
