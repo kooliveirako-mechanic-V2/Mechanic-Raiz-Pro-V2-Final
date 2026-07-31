@@ -220,6 +220,8 @@ export function useModalClose<T extends Record<string, unknown>>({
   }, [invalidIgnoreKeys]);
 
   // Condição 1: captura só quando aberto E com os dados já carregados.
+  // O caller garante, via `snapshotReady`, que a hidratação já aconteceu — para
+  // form que hidrata por useEffect, snapshotReady deve virar true SÓ depois.
   useEffect(() => {
     if (!open) {
       snapshotRef.current = null;

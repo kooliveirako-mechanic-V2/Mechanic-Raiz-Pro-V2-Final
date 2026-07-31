@@ -36,7 +36,17 @@ export function DadosFiscaisModal({ open, onOpenChange }: DadosFiscaisModalProps
   const [cfopVendas, setCfopVendas] = useState("5102");
 
   // Sync state with configuracoes
+  // Sinal para o useModalClose: a hidratação abaixo terminou. `!!configuracoes`
+  // não serve — ele é verdadeiro no render em que os dados CHEGAM, antes deste
+  // useEffect preencher os campos. O snapshot pegaria os campos vazios e a
+  // hidratação viraria "edição do usuário" (falso-sujo em toda abertura).
+  const [hydrated, setHydrated] = useState(false);
+
   useEffect(() => {
+    if (!open) {
+      setHydrated(false);
+      return;
+    }
     if (configuracoes) {
       const config = configuracoes as any;
       setRazaoSocial(config.razao_social || "");
@@ -46,6 +56,7 @@ export function DadosFiscaisModal({ open, onOpenChange }: DadosFiscaisModalProps
       setRegimeTributario(config.regime_tributario || "mei");
       setCfopServicos(config.cfop_servicos || "5933");
       setCfopVendas(config.cfop_vendas || "5102");
+      setHydrated(true);
     }
   }, [configuracoes, open]);
 
@@ -65,9 +76,9 @@ export function DadosFiscaisModal({ open, onOpenChange }: DadosFiscaisModalProps
     data: formData,
     onOpenChange,
     ignoreKeys: ["saving"],
-    // Condição 1: só captura o snapshot depois que os dados do servidor chegam.
-    // Este form hidrata via useEffect acima; snapshot antes disso = falso-sujo.
-    snapshotReady: !isLoading && !!configuracoes,
+    // Condição 1: só depois que o useEffect de hidratação RODOU (não basta os
+    // dados terem chegado — ver comentário do `hydrated` acima).
+    snapshotReady: hydrated,
   });
 
   // Formatar CNPJ
