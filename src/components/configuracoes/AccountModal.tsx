@@ -9,6 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Loader2, User, Mail } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface AccountModalProps {
   open: boolean;
@@ -21,6 +23,15 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
 
   const [loading, setLoading] = useState(false);
   const [nome, setNome] = useState(user?.user_metadata?.nome || "");
+
+  // Único campo editável é `nome` (email é readonly). Inicializa síncrono no
+  // useState → snapshotReady default. Voltar ao valor original desfaz o sujo.
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: { nome },
+    onOpenChange,
+    onReset: () => setNome(user?.user_metadata?.nome || ""),
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,8 +47,9 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
 
       toast.success("Dados atualizados com sucesso!");
       onOpenChange(false);
-    } catch (error: any) {
-      toast.error("Erro ao atualizar", { description: error.message });
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : undefined;
+      toast.error("Erro ao atualizar", { description });
     } finally {
       setLoading(false);
     }
@@ -81,8 +93,8 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
       <div className="flex gap-3 pt-4 pb-2">
         <Button 
           type="button" 
-          variant="outline" 
-          onClick={() => onOpenChange(false)} 
+          variant="outline"
+          onClick={() => handleOpenChange(false)}
           className="flex-1 h-12 text-base"
         >
           Cancelar
@@ -107,9 +119,22 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
     </div>
   );
 
+  const sairSemSalvar = (
+    <ConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title="Sair sem salvar?"
+      description="Você alterou seu nome e não salvou. A alteração será descartada."
+      confirmText="Descartar"
+      cancelText="Continuar editando"
+      onConfirm={confirmClose}
+    />
+  );
+
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <>
+      <Drawer open={open} onOpenChange={handleOpenChange}>
         <DrawerContent className="px-4 pb-6 max-h-[90dvh]">
           <DrawerHeader className="text-left px-0">
             <DrawerTitle className="flex items-center gap-2 text-lg">
@@ -121,11 +146,14 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
           </div>
         </DrawerContent>
       </Drawer>
+      {sairSemSalvar}
+      </>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -135,5 +163,7 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
         {FormContent}
       </DialogContent>
     </Dialog>
+    {sairSemSalvar}
+    </>
   );
 }
