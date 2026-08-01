@@ -20,6 +20,8 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { handleFormKeyDown } from "@/lib/formGuard";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import { useModalClose } from "@/hooks/useModalClose";
+import { markChildModalClosed, markChildModalOpen } from "@/lib/childModalLock";
 
 const veiculoSchema = z.object({
   cliente_id: z.string().min(1, "Selecione um cliente"),
@@ -40,9 +42,17 @@ interface VeiculoFormModalProps {
   onOpenChange: (open: boolean) => void;
   veiculo?: Veiculo | null;
   clienteIdPadrao?: string;
+  /** Registra este modal no childModalLock quando montado dentro de outro modal. */
+  registerAsChild?: boolean;
 }
 
-export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao }: VeiculoFormModalProps) {
+export function VeiculoFormModal({
+  open,
+  onOpenChange,
+  veiculo,
+  clienteIdPadrao,
+  registerAsChild = false,
+}: VeiculoFormModalProps) {
   const { createVeiculo, updateVeiculo, deleteVeiculo } = useVeiculos();
   const { oficinaAtual } = useOficina();
   const isMobile = useIsMobile();
@@ -89,6 +99,14 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
   const hasRestoredRef = useRef(false);
   const [draftPromptOpen, setDraftPromptOpen] = useState(false);
 
+  // Sinal para o useModalClose: a hidratação abaixo terminou. Em EDIÇÃO não há
+  // rascunho (useAutoSave desligado por !isEditing) — a guarda de sujo é a única
+  // rede. Por isso `snapshotReady` PRECISA esperar o useEffect preencher os
+  // campos a partir de `veiculo`; `!!veiculo` seria true no render em que o
+  // objeto chega, antes dos setState, e o snapshot pegaria campos vazios ×
+  // dados carregados = falso-sujo em toda abertura de edição.
+  const [hydrated, setHydrated] = useState(false);
+
   const resetVeiculoForm = useCallback(() => {
     setClienteId(clienteIdPadrao || "");
     setTipo(tipoDefault);
@@ -129,6 +147,13 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
 
   // BLINDAGEM UX: nunca restaurar rascunho silenciosamente.
   useEffect(() => {
+    if (!open) {
+      hasRestoredRef.current = false;
+      setDraftPromptOpen(false);
+      setHydrated(false);
+      setErrors({});
+      return;
+    }
     if (veiculo) {
       setClienteId(veiculo.cliente_id);
       setTipo(veiculo.tipo);
@@ -138,9 +163,9 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
       setPlaca(veiculo.placa || "");
       setKmAtual(veiculo.km_atual?.toString() || "");
       setChassi(veiculo.chassi || "");
-      setCor((veiculo as any).cor || "");
+      setCor(veiculo.cor || "");
       setObservacoes(veiculo.observacoes || "");
-    } else if (open) {
+    } else {
       if (hasDraft && !hasRestoredRef.current) {
         hasRestoredRef.current = true;
         setDraftPromptOpen(true);
@@ -149,14 +174,51 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
         resetVeiculoForm();
       }
     }
-    if (!open) {
-      hasRestoredRef.current = false;
-      setDraftPromptOpen(false);
-    }
     setErrors({});
+    // Snapshot só depois que os campos acima foram preenchidos nesta abertura.
+    setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [veiculo, clienteIdPadrao, open, tipoDefault]);
 
+
+  // Fechamento com confirmação quando o formulário está sujo. `draftData` já é
+  // só campos de formulário (sem loading/errors/deleteDialogOpen), então nada a
+  // ignorar. snapshotReady espera a hidratação (ver comentário do `hydrated`).
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: draftData,
+    onOpenChange,
+    onReset: resetVeiculoForm,
+    snapshotReady: hydrated,
+  });
+
+  // childModalLock: SÓ quando montado dentro de outro modal (registerAsChild).
+  // Nas 3 montagens de topo (Veiculos, DashboardQuickActions) não há pai a
+  // proteger, e marcar a trava global ali vazaria o eco para modais irmãos.
+  // Enquanto aberto, o pai (ClienteFormModal) não fecha por eco de
+  // pointerdown/escape do Radix. Marca ao abrir, libera ao fechar, e garante
+  // liberação no unmount se ficar aberto.
+  // TODO(aninhamento): o `ClienteSelectWithCreate` montado aqui abre seu próprio
+  // fluxo de criação de cliente e NÃO chama markChildModalOpen — segunda camada
+  // de aninhamento (VeiculoForm → ClienteSelect) ainda desprotegida. Fechar na
+  // passada de aninhamento, não neste commit (escopo = ligar VeiculoFormModal ao
+  // lock como filho do ClienteFormModal).
+  const wasChildRef = useRef(false);
+  useEffect(() => {
+    const shouldBeRegistered = open && registerAsChild;
+    if (shouldBeRegistered && !wasChildRef.current) {
+      wasChildRef.current = true;
+      markChildModalOpen();
+    } else if (!shouldBeRegistered && wasChildRef.current) {
+      wasChildRef.current = false;
+      markChildModalClosed();
+    }
+  }, [open, registerAsChild]);
+  useEffect(() => {
+    return () => {
+      if (wasChildRef.current) markChildModalClosed();
+    };
+  }, []);
 
   const scrollToFirstError = useCallback((fieldErrors: Record<string, string>) => {
     if (document.activeElement instanceof HTMLElement) {
@@ -393,7 +455,7 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
             )}
           </div>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="h-12">
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} className="h-12">
               Cancelar
             </Button>
             <Button type="submit" className="bg-accent hover:bg-accent/90 h-12 font-semibold" disabled={loading}>
@@ -462,7 +524,7 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
   if (isMobile) {
     return (
       <>
-        <Drawer open={open} onOpenChange={onOpenChange}>
+        <Drawer open={open} onOpenChange={handleOpenChange}>
           <DrawerContent className="px-4 pb-0 max-h-[90dvh] flex flex-col">
             {/* Header with inline Save button */}
             <DrawerHeader className="text-left px-0 flex-shrink-0 flex items-center justify-between">
@@ -498,7 +560,7 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
                 </Button>
               )}
               <div className={`flex gap-2 ${isEditing ? '' : 'ml-auto'}`}>
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="h-11">Cancelar</Button>
+                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} className="h-11">Cancelar</Button>
                 <Button
                   type="button"
                   className="bg-accent hover:bg-accent/90 h-11 font-semibold"
@@ -535,6 +597,16 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
           isLoading={deleteLoading}
           variant="destructive"
         />
+
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Sair sem salvar?"
+          description="Você alterou os dados do veículo e não salvou. As alterações serão descartadas."
+          confirmText="Descartar"
+          cancelText="Continuar editando"
+          onConfirm={confirmClose}
+        />
       </>
     );
   }
@@ -542,7 +614,7 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
   // ═══════════ DESKTOP: DIALOG ═══════════
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className={`${isEditing && isAutoEletrica ? "sm:max-w-2xl" : "sm:max-w-lg"} max-h-[90vh] flex flex-col`}>
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
@@ -574,6 +646,16 @@ export function VeiculoFormModal({ open, onOpenChange, veiculo, clienteIdPadrao 
         onConfirm={handleDelete}
         isLoading={deleteLoading}
         variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Sair sem salvar?"
+        description="Você alterou os dados do veículo e não salvou. As alterações serão descartadas."
+        confirmText="Descartar"
+        cancelText="Continuar editando"
+        onConfirm={confirmClose}
       />
     </>
   );

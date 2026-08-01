@@ -25,6 +25,7 @@ const PROTEGIDOS = [
   "src/components/configuracoes/DadosFiscaisModal.tsx",
   "src/components/vendas/VendaRapidaModal.tsx",
   "src/components/forms/OficinaFormModal.tsx",
+  "src/components/forms/VeiculoFormModal.tsx",
   "src/components/estoque/CatalogoServicoFormModal.tsx",
   "src/components/orcamentos/ItemSelector.tsx",
   "src/components/servicos/ServicoSelectorModal.tsx",
