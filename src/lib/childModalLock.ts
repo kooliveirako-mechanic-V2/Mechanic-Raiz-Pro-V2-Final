@@ -31,3 +31,24 @@ export function isChildModalActive(): boolean {
   if (openCount > 0) return true;
   return Date.now() - lastClosedAt < CHILD_CLOSE_ECHO_MS;
 }
+
+/**
+ * Item B — decisão PURA de "o pai deve bloquear o próprio fechamento?".
+ *
+ * Extraída para ser testável sem montar o OrdemServicoFormModal inteiro (reducer
+ * + 10 hooks + 8 subcomponentes). O componente liga estas 3 entradas; a lógica
+ * booleana vive aqui e é provada por mutação.
+ *
+ * @param childActive   trava global (isChildModalActive) — filho via lock/eco
+ * @param anyChildOpen  algum filho de finalização aberto (Kanban/ResumoFiscal/OSFinalizada)
+ * @param sinceServicoRapidoClosedMs  ms desde que o ServicoRapido fechou (eco local)
+ */
+export function shouldBlockParentClose(
+  childActive: boolean,
+  anyChildOpen: boolean,
+  sinceServicoRapidoClosedMs: number
+): boolean {
+  if (childActive) return true;
+  if (anyChildOpen) return true;
+  return sinceServicoRapidoClosedMs < CHILD_CLOSE_ECHO_MS;
+}
