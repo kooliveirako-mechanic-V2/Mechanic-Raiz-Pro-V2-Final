@@ -5,6 +5,15 @@
 // furo presente) por quoting/pipefail — falha dupla. Matching em JS é
 // determinístico, sem inferno de escape. Ver commits 38ab25a e 4326986.
 //
+// ⚠️ LIMITE DE ESCOPO (F3 do relatório adversarial): este gate mede APENAS
+// saídas DECLARATIVAS via props JSX (onOpenChange, onClick de Cancelar,
+// DialogClose, estado local). Ele NÃO detecta:
+//   - navigate()/history.back programático no meio do form
+//   - desmontagem por troca de rota (o pai some sem chamar onOpenChange)
+//   - beforeunload / fechar aba
+// `exits_unguarded=0` significa "nenhuma saída declarativa desprotegida",
+// NÃO "modal totalmente coberto". Navegação/unmount: ver useModalClose (F2).
+//
 // Meta: exits_unguarded = 0 em todo arquivo PROTEGER.
 //
 //   node scripts/audit/exits.mjs                # os já protegidos
