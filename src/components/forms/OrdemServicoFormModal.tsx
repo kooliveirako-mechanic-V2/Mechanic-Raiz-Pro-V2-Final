@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { isChildModalActive, shouldBlockParentClose } from "@/lib/childModalLock";
+import { useSyncRef } from "@/hooks/useSyncRef";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
@@ -272,6 +273,9 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
   // Radix (frágil a uma major do Radix — ver F4). Este ref, sincronizado abaixo,
   // torna a proteção explícita: enquanto qualquer filho estiver aberto, o pai
   // não fecha por ESC/overlay/pointerdown.
+  // Item E: o ref é sincronizado por useSyncedRef (hook testável) mais abaixo,
+  // a partir dos 3 states de filho. Extraído do useEffect inline para que o
+  // wiring vire unidade coberta por teste.
   const anyChildOpenRef = useRef(false);
   const isChildCloseEcho = useCallback(() => {
     return shouldBlockParentClose(
@@ -862,12 +866,10 @@ export function OrdemServicoFormModal({ open, onOpenChange, ordem, initialDate, 
   const [osFinalizadaOpen, setOsFinalizadaOpen] = useState(false);
   const [savedOrdem, setSavedOrdem] = useState<OrdemServico | null>(null);
 
-  // Item B: mantém o ref do guard explícito em sincronia com os 3 filhos.
-  // Enquanto qualquer um estiver aberto, isChildCloseEcho() retorna true e o
-  // pai não fecha por ESC/overlay/pointerdown.
-  useEffect(() => {
-    anyChildOpenRef.current = finalizarModalOpen || resumoFiscalOpen || osFinalizadaOpen;
-  }, [finalizarModalOpen, resumoFiscalOpen, osFinalizadaOpen]);
+  // Item B/E: mantém o ref do guard explícito em sincronia com os 3 filhos, via
+  // hook testável (useSyncRef). Enquanto qualquer um estiver aberto,
+  // isChildCloseEcho() retorna true e o pai não fecha por ESC/overlay/pointerdown.
+  useSyncRef(anyChildOpenRef, finalizarModalOpen || resumoFiscalOpen || osFinalizadaOpen);
 
   const handleWhatsApp = () => {
     if (!ordem) return;
