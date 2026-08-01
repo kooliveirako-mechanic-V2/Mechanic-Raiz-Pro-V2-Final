@@ -198,11 +198,11 @@ export function VeiculoFormModal({
   // Enquanto aberto, o pai (ClienteFormModal) não fecha por eco de
   // pointerdown/escape do Radix. Marca ao abrir, libera ao fechar, e garante
   // liberação no unmount se ficar aberto.
-  // TODO(aninhamento): o `ClienteSelectWithCreate` montado aqui abre seu próprio
-  // fluxo de criação de cliente e NÃO chama markChildModalOpen — segunda camada
-  // de aninhamento (VeiculoForm → ClienteSelect) ainda desprotegida. Fechar na
-  // passada de aninhamento, não neste commit (escopo = ligar VeiculoFormModal ao
-  // lock como filho do ClienteFormModal).
+  // Aninhamento VeiculoForm → ClienteSelectWithCreate: investigado na passada de
+  // aninhamento e NÃO é furo. O ClienteSelectWithCreate usa Popover com
+  // container={popoverHostRef.current}, renderizado DENTRO do DOM deste modal —
+  // não é Dialog/Drawer em portal, então não dispara onPointerDownOutside/
+  // onEscapeKeyDown do pai. Não precisa marcar childModalLock.
   const wasChildRef = useRef(false);
   useEffect(() => {
     const shouldBeRegistered = open && registerAsChild;
