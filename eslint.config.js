@@ -21,6 +21,14 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      // Ligada como WARN para flagrar TDZ (use-before-declaration), que o tsc
+      // não pega — foi o que deixou passar o bug do VendaRapida. Só avisa; os
+      // warnings existentes serão tratados em commits próprios, não aqui.
+      "no-use-before-define": "off",
+      "@typescript-eslint/no-use-before-define": [
+        "warn",
+        { functions: false, classes: false, variables: true, enums: true, typedefs: false },
+      ],
     },
   },
 );
