@@ -24,7 +24,7 @@ import { useModalClose } from "@/hooks/useModalClose";
 import { markChildModalClosed, markChildModalOpen } from "@/lib/childModalLock";
 
 const veiculoSchema = z.object({
-  cliente_id: z.string().min(1, "Selecione um cliente"),
+  cliente_id: z.string().min(1, "Selecione um cliente antes de salvar o veículo"),
   tipo: z.enum(["carro", "moto"]),
   marca: z.string().trim().min(1, "Marca é obrigatória").max(50, "Máximo 50 caracteres"),
   modelo: z.string().trim().min(1, "Modelo é obrigatório").max(50, "Máximo 50 caracteres"),
@@ -199,6 +199,11 @@ export function VeiculoFormModal({
   const saidaCopy = isEditing
     ? { confirmText: "Descartar", description: "Você alterou os dados do veículo e não salvou. As alterações serão descartadas." }
     : { confirmText: "Sair", description: "Você preencheu dados do veículo e não salvou. Seu rascunho fica guardado para você retomar depois." };
+
+  // Item A: em CRIAÇÃO, um veículo sem cliente vira órfão no banco. A validação
+  // Zod já barra o submit (cliente_id min(1)), mas o botão precisa refletir isso
+  // — desabilita enquanto não há cliente. Em edição o cliente já existe.
+  const salvarBloqueado = loading || (!isEditing && !clienteId);
 
   // childModalLock: SÓ quando montado dentro de outro modal (registerAsChild).
   // Nas 3 montagens de topo (Veiculos, DashboardQuickActions) não há pai a
@@ -466,7 +471,7 @@ export function VeiculoFormModal({
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} className="h-12">
               Cancelar
             </Button>
-            <Button type="submit" className="bg-accent hover:bg-accent/90 h-12 font-semibold" disabled={loading}>
+            <Button type="submit" className="bg-accent hover:bg-accent/90 h-12 font-semibold" disabled={salvarBloqueado}>
               {loading ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</>
               ) : isEditing ? "Salvar" : "Cadastrar"}
@@ -572,7 +577,7 @@ export function VeiculoFormModal({
                 <Button
                   type="button"
                   className="bg-accent hover:bg-accent/90 h-11 font-semibold"
-                  disabled={loading}
+                  disabled={salvarBloqueado}
                   onClick={() => {
                     const form = document.getElementById(formId) as HTMLFormElement;
                     form?.requestSubmit();
