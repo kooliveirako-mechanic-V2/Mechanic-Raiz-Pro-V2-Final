@@ -81,7 +81,10 @@ describe("ciclo real — FinanceiroFormModal", () => {
     expect(input.value).not.toBe("");
   });
 
-  it("4. 'Descartar' fecha", async () => {
+  it("4. 'Sair' fecha (copy alinhada ao autosave: rascunho fica guardado)", async () => {
+    // Item 11: este modal tem autosave sempre ligado (enabled: open), então o
+    // rascunho é recuperável → confirmText é "Sair", não "Descartar". A copy
+    // reflete o comportamento (o dado NÃO se perde).
     render(<FinanceiroFormModal open onOpenChange={onOpenChange} />);
     await waitFor(() => expect(document.getElementById("valor")).toBeTruthy());
 
@@ -89,7 +92,11 @@ describe("ciclo real — FinanceiroFormModal", () => {
     fireEvent.click(screen.getByText("Cancelar"));
     await waitFor(() => screen.getByText("Sair sem salvar?"));
 
-    fireEvent.click(screen.getByText("Descartar"));
+    // A descrição promete rascunho guardado, e o botão diz "Sair" (não "Descartar").
+    expect(screen.getByText(/rascunho fica guardado/i)).toBeInTheDocument();
+    expect(screen.queryByText("Descartar")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Sair"));
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });

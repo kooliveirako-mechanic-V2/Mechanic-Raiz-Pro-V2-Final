@@ -370,8 +370,8 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
       open={confirmOpen}
       onOpenChange={setConfirmOpen}
       title="Sair sem salvar?"
-      description="Você preencheu este lançamento e não salvou. As alterações serão descartadas."
-      confirmText="Descartar"
+      description="Você preencheu este lançamento e não salvou. Seu rascunho fica guardado para você retomar depois."
+      confirmText="Sair"
       cancelText="Continuar editando"
       onConfirm={confirmClose}
     />

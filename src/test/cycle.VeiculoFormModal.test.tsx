@@ -156,4 +156,34 @@ describe("ciclo real em edição — VeiculoFormModal", () => {
     expect(H.markChildModalOpen).not.toHaveBeenCalled();
     expect(H.markChildModalClosed).not.toHaveBeenCalled();
   });
+
+  // ── Item 11: copy de saída derivada do MODO (coerência botão↔consequência) ──
+
+  it("7. EDIÇÃO: copy é 'Descartar' (sem autosave → dado se perde)", async () => {
+    renderEditing(onOpenChange);
+    await placaHidratada();
+    editarPlaca();
+    fireEvent.click(screen.getByText("Cancelar"));
+    await waitFor(() => screen.getByText("Sair sem salvar?"));
+
+    // Em edição não há autosave → o botão promete perda.
+    expect(screen.getByText("Descartar")).toBeInTheDocument();
+    expect(screen.queryByText("Sair")).not.toBeInTheDocument();
+    expect(screen.getByText(/serão descartadas/i)).toBeInTheDocument();
+  });
+
+  it("8. CRIAÇÃO: copy é 'Sair' (autosave ligado → rascunho guardado)", async () => {
+    render(<VeiculoFormModal open onOpenChange={onOpenChange} />);
+    // Em criação não há veiculo para hidratar; o placa começa vazio.
+    await waitFor(() => expect(document.getElementById("placa")).toBeTruthy());
+
+    fireEvent.change(document.getElementById("placa")!, { target: { value: "NEW1234" } });
+    fireEvent.click(screen.getByText("Cancelar"));
+    await waitFor(() => screen.getByText("Sair sem salvar?"));
+
+    // Em criação o autosave está ligado → o botão diz "Sair", não "Descartar".
+    expect(screen.getByText("Sair")).toBeInTheDocument();
+    expect(screen.queryByText("Descartar")).not.toBeInTheDocument();
+    expect(screen.getByText(/rascunho fica guardado/i)).toBeInTheDocument();
+  });
 });

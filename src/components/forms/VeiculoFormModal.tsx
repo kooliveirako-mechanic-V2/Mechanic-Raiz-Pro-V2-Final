@@ -192,6 +192,14 @@ export function VeiculoFormModal({
     snapshotReady: hydrated,
   });
 
+  // Copy de saída derivada do MODO (regra "coerência botão↔consequência"):
+  // criação tem autosave (enabled: open && !isEditing) → dado recuperável → "Sair";
+  // edição não tem autosave → dado se perde → "Descartar". Fonte única aplicada
+  // nos dois ConfirmDialog (mobile + desktop) para não divergirem num refactor.
+  const saidaCopy = isEditing
+    ? { confirmText: "Descartar", description: "Você alterou os dados do veículo e não salvou. As alterações serão descartadas." }
+    : { confirmText: "Sair", description: "Você preencheu dados do veículo e não salvou. Seu rascunho fica guardado para você retomar depois." };
+
   // childModalLock: SÓ quando montado dentro de outro modal (registerAsChild).
   // Nas 3 montagens de topo (Veiculos, DashboardQuickActions) não há pai a
   // proteger, e marcar a trava global ali vazaria o eco para modais irmãos.
@@ -602,8 +610,8 @@ export function VeiculoFormModal({
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
           title="Sair sem salvar?"
-          description="Você alterou os dados do veículo e não salvou. As alterações serão descartadas."
-          confirmText="Descartar"
+          description={saidaCopy.description}
+          confirmText={saidaCopy.confirmText}
           cancelText="Continuar editando"
           onConfirm={confirmClose}
         />
@@ -652,8 +660,8 @@ export function VeiculoFormModal({
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="Sair sem salvar?"
-        description="Você alterou os dados do veículo e não salvou. As alterações serão descartadas."
-        confirmText="Descartar"
+        description={saidaCopy.description}
+        confirmText={saidaCopy.confirmText}
         cancelText="Continuar editando"
         onConfirm={confirmClose}
       />

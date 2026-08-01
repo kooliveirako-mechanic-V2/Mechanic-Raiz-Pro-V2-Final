@@ -36,6 +36,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  * `onReset` roda no caminho de fechamento. Se ele reabrir o modal, o próximo
  * fechamento cai no mesmo caminho e o ciclo não termina. Use-o apenas para
  * limpar estado local (campos, arquivo selecionado, passo do wizard).
+ *
+ * ---------------------------------------------------------------------------
+ * REGRA DA COPY DE SAÍDA (o ConfirmDialog que este hook governa)
+ * ---------------------------------------------------------------------------
+ * A fonte da verdade do `confirmText` é o DESTINO DO DADO, não a tela:
+ *   confirmText="Sair"      → o dado SOBREVIVE (autosave ativo + DraftPromptDialog
+ *                             reoferece na reabertura). Descrição diz onde ele fica.
+ *   confirmText="Descartar" → o dado SE PERDE (sem autosave neste modo).
+ * Modal dual-mode (ex.: criação com autosave vs. edição sem): derive a copy do
+ * modo, NUNCA fixe uma das duas — senão o botão mente em um dos modos.
  */
 
 interface UseModalCloseOptions<T extends Record<string, unknown>> {
