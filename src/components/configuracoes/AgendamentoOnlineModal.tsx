@@ -11,6 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Copy, ExternalLink, Loader2 } from "lucide-react";
 import { useAgendamentoOnlineConfig, type DiaSemana, type HorariosSemana } from "@/hooks/useAgendamentoOnline";
 import { useCatalogoServicos } from "@/hooks/useCatalogoServicos";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 
 interface Props {
@@ -53,7 +55,15 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
   const [msgConfirmacao, setMsgConfirmacao] = useState("");
   const [msgAprovacao, setMsgAprovacao] = useState("");
 
+  // Sem autosave: hidrata por useEffect a partir de `config`. `!!config` seria
+  // true antes dos setState → snapshot pegaria defaults × config = falso-sujo.
+  const [hydrated, setHydrated] = useState(false);
+
   useEffect(() => {
+    if (!open) {
+      setHydrated(false);
+      return;
+    }
     if (!config) return;
     setAtivo(config.agendamento_online_ativo);
     setSlug(config.agendamento_online_slug || "");
@@ -65,7 +75,8 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
     setServicosPermitidos(config.agendamento_online_servicos_permitidos || []);
     setMsgConfirmacao(config.agendamento_online_mensagem_confirmacao);
     setMsgAprovacao(config.agendamento_online_mensagem_aprovacao);
-  }, [config]);
+    setHydrated(true);
+  }, [config, open]);
 
   const PUBLIC_BASE_URL = "https://www.mechanicraizpro.com.br";
   const publicUrl = useMemo(() => {
@@ -75,6 +86,20 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
 
   const slugValido = /^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/.test(slug);
 
+  // `horarios` entra inteiro no snapshot; o comparador recursa (objeto aninhado
+  // por dia). `servicosPermitidos` é array — comparado por conteúdo.
+  const formData = {
+    ativo, slug, horarios, capacidade, duracao, diasMax, mostrarPrecos,
+    servicosPermitidos, msgConfirmacao, msgAprovacao,
+  };
+
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: formData,
+    onOpenChange,
+    snapshotReady: hydrated,
+  });
+
   const handleSalvar = async () => {
     if (ativo && !slugValido) {
       toast.error("Slug inválido", { description: "Use 3-50 caracteres: letras minúsculas, números e hífens." });
@@ -83,12 +108,12 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
     await update.mutateAsync({
       agendamento_online_ativo: ativo,
       agendamento_online_slug: slug ? slug.toLowerCase() : null,
-      agendamento_online_horarios: horarios as any,
+      agendamento_online_horarios: horarios,
       agendamento_online_capacidade_simultanea: capacidade,
       agendamento_online_duracao_slot_minutos: duracao,
       agendamento_online_dias_antecedencia_max: diasMax,
       agendamento_online_mostrar_precos: mostrarPrecos,
-      agendamento_online_servicos_permitidos: servicosPermitidos as any,
+      agendamento_online_servicos_permitidos: servicosPermitidos,
       agendamento_online_mensagem_confirmacao: msgConfirmacao,
       agendamento_online_mensagem_aprovacao: msgAprovacao,
     });
@@ -108,7 +133,8 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Agendamento Online</DialogTitle>
@@ -262,7 +288,7 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
         )}
 
         <div className="flex justify-end gap-2 pt-4 border-t sticky bottom-0 bg-background">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancelar</Button>
           <Button onClick={handleSalvar} disabled={update.isPending}>
             {update.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Salvar
@@ -270,5 +296,16 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
         </div>
       </DialogContent>
     </Dialog>
+
+    <ConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title="Sair sem salvar?"
+      description="Você alterou a configuração de agendamento e não salvou. As alterações serão descartadas."
+      confirmText="Descartar"
+      cancelText="Continuar editando"
+      onConfirm={confirmClose}
+    />
+    </>
   );
 }
