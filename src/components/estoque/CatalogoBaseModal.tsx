@@ -9,6 +9,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { Search, Plus, Package, Check, Loader2, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface CatalogoBaseModalProps {
   open: boolean;
@@ -159,11 +161,19 @@ export function CatalogoBaseModal({ open, onOpenChange }: CatalogoBaseModalProps
     onOpenChange(false);
   };
 
-  const handleClose = () => {
-    setSearchTerm("");
-    setSelectedItems(new Set());
-    onOpenChange(false);
-  };
+  // Estado "sujo" = o Set de itens selecionados. searchTerm/adding são voláteis
+  // (buscar não é editar) e ficam de fora via ignoreKeys. O comparador tem
+  // suporte a Set (conteúdo, independente de ordem) desde 38ab25a.
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: { selectedItems, searchTerm, adding },
+    onOpenChange,
+    ignoreKeys: ["searchTerm", "adding"],
+    onReset: () => {
+      setSearchTerm("");
+      setSelectedItems(new Set());
+    },
+  });
 
   const categorias = [...new Set(filteredItems.map(i => i.categoria))];
 
@@ -253,7 +263,7 @@ export function CatalogoBaseModal({ open, onOpenChange }: CatalogoBaseModalProps
           </div>
 
           <div className="flex flex-col-reverse md:flex-row justify-between gap-2 pt-4 border-t mt-4">
-            <Button variant="outline" onClick={handleClose} className="w-full md:w-auto">
+            <Button variant="outline" onClick={() => handleOpenChange(false)} className="w-full md:w-auto">
               Cancelar
             </Button>
             <Button
@@ -279,9 +289,22 @@ export function CatalogoBaseModal({ open, onOpenChange }: CatalogoBaseModalProps
     </div>
   );
 
+  const sairSemSalvar = (
+    <ConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title="Sair sem salvar?"
+      description="Você selecionou itens do catálogo e não os adicionou. A seleção será descartada."
+      confirmText="Descartar"
+      cancelText="Continuar editando"
+      onConfirm={confirmClose}
+    />
+  );
+
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={handleClose}>
+      <>
+      <Drawer open={open} onOpenChange={handleOpenChange}>
         <DrawerContent className="px-4 pb-6">
           <DrawerHeader className="text-left px-0">
             <DrawerTitle className="flex items-center gap-2">
@@ -299,11 +322,14 @@ export function CatalogoBaseModal({ open, onOpenChange }: CatalogoBaseModalProps
           {modalContent}
         </DrawerContent>
       </Drawer>
+      {sairSemSalvar}
+      </>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -321,5 +347,7 @@ export function CatalogoBaseModal({ open, onOpenChange }: CatalogoBaseModalProps
         {modalContent}
       </DialogContent>
     </Dialog>
+    {sairSemSalvar}
+    </>
   );
 }
