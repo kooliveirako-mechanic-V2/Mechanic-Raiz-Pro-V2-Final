@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useOficinaLabels } from "@/hooks/useOficinaLabels";
 import { useModalClose } from "@/hooks/useModalClose";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { markChildModalOpen, markChildModalClosed } from "@/lib/childModalLock";
 
 interface ItemSelectorProps {
   open: boolean;
@@ -112,6 +113,26 @@ export function ItemSelector({ open, onOpenChange, onAddItem }: ItemSelectorProp
     onReset: resetForm,
     ignoreKeys: ["search"],
   });
+
+  // D2: este ItemSelector é Dialog em portal, filho do OrcamentoFormModal.
+  // Marca o childModalLock enquanto aberto para que o pai (Orcamento) não feche
+  // por eco de pointerdown/escape do Radix quando este fecha. Mesmo padrão do
+  // par ClienteForm→VeiculoForm. Sincroniza com `open` e libera no unmount.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      wasOpenRef.current = true;
+      markChildModalOpen();
+    } else if (!open && wasOpenRef.current) {
+      wasOpenRef.current = false;
+      markChildModalClosed();
+    }
+  }, [open]);
+  useEffect(() => {
+    return () => {
+      if (wasOpenRef.current) markChildModalClosed();
+    };
+  }, []);
 
   const isValid = tipo === "servico"
     ? nomeManual && valorUnitario
