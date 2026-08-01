@@ -38,6 +38,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  * limpar estado local (campos, arquivo selecionado, passo do wizard).
  *
  * ---------------------------------------------------------------------------
+ * LIMITE DE ESCOPO — o que este hook NÃO cobre (F2/F3 do relatório adversarial)
+ * ---------------------------------------------------------------------------
+ * Este hook protege as saídas DECLARATIVAS do modal: Cancelar, ESC, clique no
+ * overlay, botão X, swipe — tudo que passa pelo `onOpenChange` do Radix. Ele
+ * NÃO cobre:
+ *   - Desmontagem por troca de rota (o pai some sem chamar onOpenChange). A
+ *     mitigação é o flush no unmount do useAutoSave — logo, modal SEM autosave
+ *     perde o dado nesse caso. TODO: avaliar autosave para os modais sem ele
+ *     (Security, Account, Notifications, Agendamento, DadosFiscais, CatalogoBase,
+ *     Estoque-edição). Decisão do produto pendente.
+ *   - navigate()/history.back programático no meio do form (ver F3).
+ * `exits_unguarded=0` mede só o primeiro grupo, não estes.
+ *
+ * ---------------------------------------------------------------------------
  * REGRA DA COPY DE SAÍDA (o ConfirmDialog que este hook governa)
  * ---------------------------------------------------------------------------
  * A fonte da verdade do `confirmText` é o DESTINO DO DADO, não a tela:
