@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { logBusinessEvent } from "@/lib/errorHandling";
 import { handleFormKeyDown } from "@/lib/formGuard";
+import { useModalClose } from "@/hooks/useModalClose";
 
 const estoqueSchema = z.object({
   nome: z.string().trim().min(2, "Nome deve ter pelo menos 2 caracteres").max(100, "Máximo 100 caracteres"),
@@ -121,7 +122,17 @@ export function EstoqueFormModal({ open, onOpenChange, item }: EstoqueFormModalP
 
   const isEditing = !!item;
 
+  // Sem useAutoSave neste modal: a guarda de sujo é a ÚNICA rede, inclusive em
+  // edição, que hidrata pelo useEffect abaixo. `!!item` seria true antes dos
+  // setState rodarem → snapshot pegaria campos vazios × dados = falso-sujo.
+  const [hydrated, setHydrated] = useState(false);
+
   useEffect(() => {
+    if (!open) {
+      setHydrated(false);
+      setErrors({});
+      return;
+    }
     if (item) {
       setNome(item.nome);
       // Verifica se a categoria do item está na lista padrão
@@ -153,6 +164,9 @@ export function EstoqueFormModal({ open, onOpenChange, item }: EstoqueFormModalP
       resetForm();
     }
     setErrors({});
+    // Snapshot só depois que os campos acima foram preenchidos nesta abertura.
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, open, tipoDefault, categorias]);
 
   const resetForm = () => {
@@ -174,6 +188,24 @@ export function EstoqueFormModal({ open, onOpenChange, item }: EstoqueFormModalP
     setFornecedorEmail("");
     setActiveTab("info");
   };
+
+  // Snapshot = os 16 campos de DADOS. Os 5 restantes dos "21 estados" são de
+  // UI/controle e ficam de fora: loading, deleteDialogOpen, deleteLoading,
+  // errors, activeTab (aba não é dado do item). Campos numéricos entram como
+  // string — "0" é valor preenchido (custo zerado legítimo), não vazio.
+  const formData = {
+    nome, categoria, categoriaCustom, isCustomCategoryMode, tipoVeiculo,
+    quantidade, custoUnitario, precoVenda, alertaMinimo, localizacao,
+    codigo, ncm, tipoItem, fornecedorNome, fornecedorTelefone, fornecedorEmail,
+  };
+
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: formData,
+    onOpenChange,
+    onReset: resetForm,
+    snapshotReady: hydrated,
+  });
 
   const validateForm = useCallback((): boolean => {
     const result = estoqueSchema.safeParse({
@@ -470,7 +502,7 @@ export function EstoqueFormModal({ open, onOpenChange, item }: EstoqueFormModalP
           <Button
             type="button"
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={() => handleOpenChange(false)}
           >
             Cancelar
           </Button>
@@ -497,7 +529,7 @@ export function EstoqueFormModal({ open, onOpenChange, item }: EstoqueFormModalP
   if (isMobile) {
     return (
       <>
-        <Drawer open={open} onOpenChange={onOpenChange}>
+        <Drawer open={open} onOpenChange={handleOpenChange}>
           <DrawerContent className="px-4 pb-6 max-h-[90dvh] flex flex-col">
             <DrawerHeader className="text-left px-0 shrink-0 flex items-center justify-between">
               <DrawerTitle className="flex items-center gap-2 text-lg">
@@ -528,6 +560,16 @@ export function EstoqueFormModal({ open, onOpenChange, item }: EstoqueFormModalP
           isLoading={deleteLoading}
           variant="destructive"
         />
+
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Sair sem salvar?"
+          description="Você alterou os dados deste item e não salvou. As alterações serão descartadas."
+          confirmText="Descartar"
+          cancelText="Continuar editando"
+          onConfirm={confirmClose}
+        />
       </>
     );
   }
@@ -535,7 +577,7 @@ export function EstoqueFormModal({ open, onOpenChange, item }: EstoqueFormModalP
   // Desktop/Tablet: Dialog
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -557,6 +599,16 @@ export function EstoqueFormModal({ open, onOpenChange, item }: EstoqueFormModalP
         onConfirm={handleDelete}
         isLoading={deleteLoading}
         variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Sair sem salvar?"
+        description="Você alterou os dados deste item e não salvou. As alterações serão descartadas."
+        confirmText="Descartar"
+        cancelText="Continuar editando"
+        onConfirm={confirmClose}
       />
     </>
   );
