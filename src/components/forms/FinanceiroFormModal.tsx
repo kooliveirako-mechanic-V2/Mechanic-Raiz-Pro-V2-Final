@@ -18,6 +18,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { humanizeError, withRetry, logBusinessEvent } from "@/lib/errorHandling";
 import { handleFormKeyDown } from "@/lib/formGuard";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface FinanceiroFormModalProps {
   open: boolean;
@@ -110,6 +112,17 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
     setDraftPromptOpen(false);
   }, [clearDraft, resetFinanceiroForm]);
 
+  // Fechamento com confirmação quando sujo. Só criação (sem modo edição), então
+  // snapshotReady default (true) basta. `draftData` já é só campos de formulário
+  // — nenhum volátil a ignorar; `valor="0"` é valor preenchido (dinheiro), o
+  // comparador não pode tratá-lo como vazio.
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: draftData,
+    onOpenChange,
+    onReset: resetFinanceiroForm,
+  });
+
   // BLINDAGEM UX: nunca restaurar rascunho silenciosamente.
   useEffect(() => {
     if (tipoInicial) {
@@ -178,7 +191,7 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
       
       clearDraft();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // BLINDAGEM: Mensagem humanizada
       const errorInfo = humanizeError(error);
       toast.error(errorInfo.message, { description: errorInfo.description });
@@ -303,8 +316,8 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
       <div className="flex gap-3 pt-4 pb-2">
         <Button 
           type="button" 
-          variant="outline" 
-          onClick={() => onOpenChange(false)} 
+          variant="outline"
+          onClick={() => handleOpenChange(false)}
           className="flex-1 h-12 text-base"
         >
           Cancelar
@@ -352,11 +365,23 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
     />
   );
 
+  const sairSemSalvar = (
+    <ConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title="Sair sem salvar?"
+      description="Você preencheu este lançamento e não salvou. Seu rascunho fica guardado para você retomar depois."
+      confirmText="Sair"
+      cancelText="Continuar editando"
+      onConfirm={confirmClose}
+    />
+  );
+
   // Mobile: Drawer from bottom
   if (isMobile) {
     return (
       <>
-        <Drawer open={open} onOpenChange={onOpenChange}>
+        <Drawer open={open} onOpenChange={handleOpenChange}>
           <DrawerContent className="px-4 pb-6 max-h-[90dvh]">
             <DrawerHeader className="text-left px-0">
               <DrawerTitle className="flex items-center gap-2 text-lg">
@@ -369,6 +394,7 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
           </DrawerContent>
         </Drawer>
         {draftPrompt}
+        {sairSemSalvar}
       </>
     );
   }
@@ -376,7 +402,7 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
   // Desktop: Dialog
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -387,6 +413,7 @@ export function FinanceiroFormModal({ open, onOpenChange, tipo: tipoInicial }: F
         </DialogContent>
       </Dialog>
       {draftPrompt}
+      {sairSemSalvar}
     </>
   );
 }

@@ -30,6 +30,7 @@ import { useVeiculos } from "@/hooks/useVeiculos";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useModalClose } from "@/hooks/useModalClose";
 
 const tiposServico = [
   "Troca de Óleo",
@@ -99,6 +100,15 @@ export function LembretesManutencao({
     setIntervaloKm("");
   };
 
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open: dialogOpen,
+    // selectedVeiculo pode vir de veiculoId (prop) — mas é estável na montagem,
+    // não hidrata por efeito assíncrono, então entra na comparação normalmente.
+    data: { selectedVeiculo, tipoServico, intervaloDias, intervaloKm },
+    onOpenChange: setDialogOpen,
+    onReset: resetForm,
+  });
+
   const getStatusBadge = (recorrencia: typeof recorrencias[0]) => {
     if (!recorrencia.ativo) {
       return <Badge variant="outline" className="text-muted-foreground">Inativo</Badge>;
@@ -161,7 +171,7 @@ export function LembretesManutencao({
           </h3>
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <Button size="sm" className="bg-accent hover:bg-accent/90">
               <Plus className="w-4 h-4 mr-1" />
@@ -253,10 +263,7 @@ export function LembretesManutencao({
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={() => {
-                    setDialogOpen(false);
-                    resetForm();
-                  }}
+                  onClick={() => handleOpenChange(false)}
                 >
                   Cancelar
                 </Button>
@@ -271,6 +278,15 @@ export function LembretesManutencao({
             </div>
           </DialogContent>
         </Dialog>
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Descartar lembrete?"
+          description="Você preencheu dados deste lembrete e não salvou. As informações serão descartadas."
+          confirmText="Descartar"
+          cancelText="Continuar preenchendo"
+          onConfirm={confirmClose}
+        />
       </div>
 
       {/* Lista de lembretes */}

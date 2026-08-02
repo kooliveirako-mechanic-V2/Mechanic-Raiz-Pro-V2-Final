@@ -60,6 +60,10 @@ export function useAutoSave<T>({
   const dataRef = useRef<T>(data);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const versionRef = useRef(1);
+  // F2: rastreia escrita de debounce pendente para dar flush no unmount.
+  // Sem isso, desmontar o modal (troca de rota) antes do intervalo descarta a
+  // última edição — o cleanup do debounce só faz clearTimeout.
+  const pendingRef = useRef(false);
 
   const storageKey = `${DRAFT_PREFIX}${key}`;
 
@@ -111,6 +115,7 @@ export function useAutoSave<T>({
       localStorage.setItem(storageKey, JSON.stringify(draft));
       setLastSaved(new Date(draft.timestamp));
       setHasDraft(true);
+      pendingRef.current = false; // escrita concretizada — nada pendente
     } catch (error) {
       console.error("[AutoSave] Erro ao salvar rascunho:", error);
     } finally {
@@ -126,6 +131,7 @@ export function useAutoSave<T>({
       clearTimeout(saveTimeoutRef.current);
     }
 
+    pendingRef.current = true; // há uma escrita agendada por este render
     saveTimeoutRef.current = setTimeout(saveNow, interval);
 
     return () => {
@@ -134,6 +140,16 @@ export function useAutoSave<T>({
       }
     };
   }, [data, enabled, interval, saveNow]);
+
+  // F2 — flush no UNMOUNT. Se o componente desmontar (ex.: troca de rota) com
+  // uma escrita de debounce pendente, persiste o rascunho em vez de descartá-lo.
+  // Deps [] garante que só roda no desmonte real, não a cada render.
+  useEffect(() => {
+    return () => {
+      if (pendingRef.current) saveNow();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Flush imediato ao trocar de aba/app ou encerrar a página
   useEffect(() => {

@@ -20,6 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ServicoSelectorModalProps {
   open: boolean;
@@ -84,6 +86,14 @@ export function ServicoSelectorModal({
     setValorManual("");
     setSearch("");
   };
+
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: { selectedItem, nomeManual, valorManual, search },
+    onOpenChange,
+    onReset: resetForm,
+    ignoreKeys: ["search"], // filtro de busca, não dado do usuário
+  });
 
   const isValid = selectedItem || nomeManual.trim().length > 0;
 
@@ -198,7 +208,7 @@ export function ServicoSelectorModal({
         <Button
           type="button"
           variant="outline"
-          onClick={() => onOpenChange(false)}
+          onClick={() => handleOpenChange(false)}
           className="flex-1 h-11"
         >
           Cancelar
@@ -225,31 +235,49 @@ export function ServicoSelectorModal({
     </div>
   );
 
+  const CloseConfirm = (
+    <ConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title="Descartar mão de obra?"
+      description="Você preencheu dados e não adicionou. As informações serão descartadas."
+      confirmText="Descartar"
+      cancelText="Continuar preenchendo"
+      onConfirm={confirmClose}
+    />
+  );
+
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o); }}>
-        <DrawerContent className="max-h-[90dvh]">
-          <DrawerHeader className="text-left">
-            <DrawerTitle>{HeaderContent}</DrawerTitle>
-          </DrawerHeader>
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y" style={{ WebkitOverflowScrolling: "touch" }}>
-            {Content}
-          </div>
-        </DrawerContent>
-      </Drawer>
+      <>
+        <Drawer open={open} onOpenChange={handleOpenChange}>
+          <DrawerContent className="max-h-[90dvh]">
+            <DrawerHeader className="text-left">
+              <DrawerTitle>{HeaderContent}</DrawerTitle>
+            </DrawerHeader>
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y" style={{ WebkitOverflowScrolling: "touch" }}>
+              {Content}
+            </div>
+          </DrawerContent>
+        </Drawer>
+        {CloseConfirm}
+      </>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o); }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{HeaderContent}</DialogTitle>
-        </DialogHeader>
-        <div className="-mx-6 -mb-6">
-          {Content}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{HeaderContent}</DialogTitle>
+          </DialogHeader>
+          <div className="-mx-6 -mb-6">
+            {Content}
+          </div>
+        </DialogContent>
+      </Dialog>
+      {CloseConfirm}
+    </>
   );
 }

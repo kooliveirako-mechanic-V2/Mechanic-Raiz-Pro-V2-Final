@@ -7,6 +7,8 @@ import { Separator } from "@/components/ui/separator";
 import { Bell, MessageSquare, Package, Calendar, BarChart3, Loader2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useOficinaConfiguracoes } from "@/hooks/useOficinaConfiguracoes";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface NotificationsModalProps {
   open: boolean;
@@ -23,15 +25,32 @@ export function NotificationsModal({ open, onOpenChange }: NotificationsModalPro
   const [resumoDiario, setResumoDiario] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Sem autosave: hidrata dos valores do banco por useEffect. `!!configuracoes`
+  // seria true antes dos setState → snapshot pegaria defaults × banco =
+  // falso-sujo. A flag garante o snapshot só após a hidratação.
+  const [hydrated, setHydrated] = useState(false);
+
   // Sync state with database values when modal opens
   useEffect(() => {
-    if (open && configuracoes) {
+    if (!open) {
+      setHydrated(false);
+      return;
+    }
+    if (configuracoes) {
       setWhatsappNotif(configuracoes.whatsapp_notificacoes ?? true);
       setEstoqueAlerta(configuracoes.estoque_alertas ?? true);
       setRecorrenciaLembrete(configuracoes.recorrencia_lembretes ?? true);
       setResumoDiario(configuracoes.resumo_diario ?? false);
+      setHydrated(true);
     }
   }, [open, configuracoes]);
+
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: { whatsappNotif, estoqueAlerta, recorrenciaLembrete, resumoDiario },
+    onOpenChange,
+    snapshotReady: hydrated,
+  });
 
   const handleSave = async () => {
     setSaving(true);
@@ -109,8 +128,8 @@ export function NotificationsModal({ open, onOpenChange }: NotificationsModalPro
       <div className="flex gap-3 pt-4 pb-2">
         <Button 
           type="button" 
-          variant="outline" 
-          onClick={() => onOpenChange(false)} 
+          variant="outline"
+          onClick={() => handleOpenChange(false)}
           className="flex-1 h-12 text-base"
           disabled={saving}
         >
@@ -136,9 +155,22 @@ export function NotificationsModal({ open, onOpenChange }: NotificationsModalPro
     </div>
   );
 
+  const sairSemSalvar = (
+    <ConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title="Sair sem salvar?"
+      description="Você alterou as preferências de notificação e não salvou. As alterações serão descartadas."
+      confirmText="Descartar"
+      cancelText="Continuar editando"
+      onConfirm={confirmClose}
+    />
+  );
+
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <>
+      <Drawer open={open} onOpenChange={handleOpenChange}>
         <DrawerContent className="px-4 pb-6 max-h-[90dvh]">
           <DrawerHeader className="text-left px-0">
             <DrawerTitle className="flex items-center gap-2 text-lg">
@@ -150,11 +182,14 @@ export function NotificationsModal({ open, onOpenChange }: NotificationsModalPro
           </div>
         </DrawerContent>
       </Drawer>
+      {sairSemSalvar}
+      </>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -164,5 +199,7 @@ export function NotificationsModal({ open, onOpenChange }: NotificationsModalPro
         {FormContent}
       </DialogContent>
     </Dialog>
+    {sairSemSalvar}
+    </>
   );
 }

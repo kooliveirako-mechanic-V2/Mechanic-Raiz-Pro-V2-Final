@@ -5,6 +5,8 @@ import { useEstoque, ItemEstoqueInput } from "@/hooks/useEstoque";
 import { toast } from "sonner";
 import { Upload, FileSpreadsheet, Download, Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ImportCSVModalProps {
   open: boolean;
@@ -196,13 +198,31 @@ export function ImportCSVModal({ open, onOpenChange }: ImportCSVModalProps) {
     setStep("done");
   };
 
-  const handleClose = () => {
+  const resetImport = () => {
     setParsedItems([]);
     setStep("upload");
     setImportProgress(0);
     setImportResults({ success: 0, failed: 0 });
-    onOpenChange(false);
   };
+
+  // Confirm-only, SEM useAutoSave: o trabalho aqui é um objeto File + o parse em
+  // memória. JSON.stringify(File) vira {}, então prometer rascunho seria mentira
+  // — o usuário reabriria com o mapeamento sem o arquivo.
+  //
+  // `enabled` sobre estado OBSERVÁVEL (step), nunca isDirty sobre File:
+  //   "upload"    → nada carregado, fecha calado (nada a perder)
+  //   "preview"   → CSV parseado e em revisão: confirma antes de descartar
+  //   "importing" → em andamento
+  //   "done"      → já gravado, fecha direto
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: { parsedItems },
+    onOpenChange,
+    onReset: resetImport,
+    enabled: step === "preview",
+  });
+
+  const handleClose = () => handleOpenChange(false);
 
   const removeItem = (index: number) => {
     setParsedItems(prev => prev.filter((_, i) => i !== index));
@@ -390,6 +410,15 @@ export function ImportCSVModal({ open, onOpenChange }: ImportCSVModalProps) {
           </div>
         )}
       </DialogContent>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Descartar importação?"
+        description="Você carregou uma planilha e ainda não importou. Os dados revisados serão descartados."
+        confirmText="Descartar"
+        cancelText="Continuar importação"
+        onConfirm={confirmClose}
+      />
     </Dialog>
   );
 }

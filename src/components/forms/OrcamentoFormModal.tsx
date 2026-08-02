@@ -14,6 +14,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ItemSelector } from "@/components/orcamentos/ItemSelector";
 import { InlineItemForm, PendingItem } from "@/components/orcamentos/InlineItemForm";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useModalClose } from "@/hooks/useModalClose";
+import { isChildModalActive, shouldIgnoreParentClose } from "@/lib/childModalLock";
 import { ClienteSelectWithCreate } from "./ClienteSelectWithCreate";
 import { VeiculoSelectWithCreate } from "./VeiculoSelectWithCreate";
 import { formatCurrency } from "@/lib/formatters";
@@ -336,12 +338,40 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
     onOpenChange(false);
   };
 
-  const handleCancel = () => {
+  // D1: onReset do guard — limpa o form ao descartar (só em criação, onde há
+  // rascunho a limpar). Em edição não mexe (não há autosave).
+  const resetOnClose = () => {
     if (!isEditing) {
       clearDraft();
       resetForm();
     }
-    onOpenChange(false);
+  };
+
+  // D1: guard de saída do Orcamento. Dual-mode como o VeiculoForm — criação tem
+  // autosave (dado recuperável → "Sair"), edição não (→ "Descartar").
+  // childOpen: o ItemSelector (Dialog em portal, filho) marca childModalLock;
+  // se estiver ativo, o fechamento do pai é eco do filho e deve ser ignorado.
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: draftData,
+    onOpenChange,
+    onReset: resetOnClose,
+  });
+
+  const guardedOpenChange = (next: boolean) => {
+    // D2: ignora o eco de fechamento propagado pelo ItemSelector recém-fechado.
+    // Decisão em função pura (shouldIgnoreParentClose) — testável por mutação,
+    // já que o eco de portal não é reproduzível em jsdom.
+    if (shouldIgnoreParentClose(next, isChildModalActive())) return;
+    handleOpenChange(next);
+  };
+
+  const saidaCopy = isEditing
+    ? { confirmText: "Descartar", description: "Você alterou este orçamento e não salvou. As alterações serão descartadas." }
+    : { confirmText: "Sair", description: "Você preencheu este orçamento e não salvou. Seu rascunho fica guardado para você retomar depois." };
+
+  const handleCancel = () => {
+    guardedOpenChange(false);
   };
 
   const handleAddItem = async (item: any) => {
@@ -843,7 +873,7 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
   if (isMobile) {
     return (
       <>
-        <Drawer open={open} onOpenChange={onOpenChange}>
+        <Drawer open={open} onOpenChange={guardedOpenChange}>
           <DrawerContent className="max-h-[90dvh] px-4 pb-6 flex flex-col">
             <DrawerHeader className="text-left px-0 shrink-0 flex items-center justify-between">
               <DrawerTitle>{HeaderTitle}</DrawerTitle>
@@ -894,13 +924,23 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
           onConfirm={handleConvertToOS}
           isLoading={convertLoading}
         />
+
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Sair sem salvar?"
+          description={saidaCopy.description}
+          confirmText={saidaCopy.confirmText}
+          cancelText="Continuar editando"
+          onConfirm={confirmClose}
+        />
       </>
     );
   }
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={guardedOpenChange}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{HeaderTitle}</DialogTitle>
@@ -941,6 +981,16 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
         confirmText={convertLoading ? "Convertendo..." : "Converter em OS"}
         onConfirm={handleConvertToOS}
         isLoading={convertLoading}
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Sair sem salvar?"
+        description={saidaCopy.description}
+        confirmText={saidaCopy.confirmText}
+        cancelText="Continuar editando"
+        onConfirm={confirmClose}
       />
     </>
   );

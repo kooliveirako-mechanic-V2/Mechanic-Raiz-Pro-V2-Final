@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { Loader2, Building2, Phone, MapPin, Car, Bike, Zap } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { handleFormKeyDown } from "@/lib/formGuard";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface OficinaFormModalProps {
   open: boolean;
@@ -27,14 +29,33 @@ export function OficinaFormModal({ open, onOpenChange }: OficinaFormModalProps) 
   const [endereco, setEndereco] = useState("");
   const [tipo, setTipo] = useState("ambos");
 
+  // Sinal para o useModalClose: a hidratação abaixo terminou. `!!oficinaAtual`
+  // não serve — é verdadeiro no render em que o contexto chega, ANTES deste
+  // useEffect preencher os campos; o snapshot pegaria vazio e a hidratação
+  // viraria "edição" (falso-sujo em toda abertura).
+  const [hydrated, setHydrated] = useState(false);
+
   useEffect(() => {
-    if (oficinaAtual && open) {
+    if (!open) {
+      setHydrated(false);
+      return;
+    }
+    if (oficinaAtual) {
       setNome(oficinaAtual.nome);
       setTelefone(oficinaAtual.telefone || "");
       setEndereco(oficinaAtual.endereco || "");
       setTipo(oficinaAtual.tipo);
+      setHydrated(true);
     }
   }, [oficinaAtual, open]);
+
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: { nome, telefone, endereco, tipo, loading },
+    onOpenChange,
+    ignoreKeys: ["loading"], // flag de UI durante o submit
+    snapshotReady: hydrated,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,9 +175,9 @@ export function OficinaFormModal({ open, onOpenChange }: OficinaFormModalProps) 
       {/* Actions */}
       <div className="flex gap-3 pt-4 pb-2">
         <Button 
-          type="button" 
-          variant="outline" 
-          onClick={() => onOpenChange(false)} 
+          type="button"
+          variant="outline"
+          onClick={() => handleOpenChange(false)}
           className="flex-1 h-12 text-base"
         >
           Cancelar
@@ -181,35 +202,53 @@ export function OficinaFormModal({ open, onOpenChange }: OficinaFormModalProps) 
     </div>
   );
 
+  const CloseConfirm = (
+    <ConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title="Sair sem salvar?"
+      description="Você alterou os dados da oficina e não salvou. As alterações serão descartadas."
+      confirmText="Descartar"
+      cancelText="Continuar editando"
+      onConfirm={confirmClose}
+    />
+  );
+
   // Mobile: Drawer from bottom
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="px-4 pb-6 max-h-[90dvh]">
-          <DrawerHeader className="text-left px-0">
-            <DrawerTitle className="flex items-center gap-2 text-lg">
-              {HeaderContent}
-            </DrawerTitle>
-          </DrawerHeader>
-          <div className="overflow-y-auto">
-            {FormContent}
-          </div>
-        </DrawerContent>
-      </Drawer>
+      <>
+        <Drawer open={open} onOpenChange={handleOpenChange}>
+          <DrawerContent className="px-4 pb-6 max-h-[90dvh]">
+            <DrawerHeader className="text-left px-0">
+              <DrawerTitle className="flex items-center gap-2 text-lg">
+                {HeaderContent}
+              </DrawerTitle>
+            </DrawerHeader>
+            <div className="overflow-y-auto">
+              {FormContent}
+            </div>
+          </DrawerContent>
+        </Drawer>
+        {CloseConfirm}
+      </>
     );
   }
 
   // Desktop: Dialog
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {HeaderContent}
-          </DialogTitle>
-        </DialogHeader>
-        {FormContent}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {HeaderContent}
+            </DialogTitle>
+          </DialogHeader>
+          {FormContent}
+        </DialogContent>
+      </Dialog>
+      {CloseConfirm}
+    </>
   );
 }

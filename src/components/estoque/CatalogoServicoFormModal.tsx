@@ -12,6 +12,8 @@ import { useCatalogoServicos, CatalogoServico, TipoVeiculoCatalogo } from "@/hoo
 import { Loader2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { parseCurrency } from "@/lib/formatters";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Props {
   open: boolean;
@@ -29,6 +31,12 @@ export function CatalogoServicoFormModal({ open, onOpenChange, servico }: Props)
   const [tempo, setTempo] = useState("");
   const [descricao, setDescricao] = useState("");
 
+  // Sinaliza ao useModalClose que a hidratação abaixo terminou. Sem isso o
+  // snapshot seria capturado no 1º render (campos vazios) e a hidratação
+  // seguinte seria lida como edição do usuário — falso-sujo em toda abertura
+  // em modo edição.
+  const [hydrated, setHydrated] = useState(false);
+
   useEffect(() => {
     if (open) {
       setNome(servico?.nome || "");
@@ -37,10 +45,22 @@ export function CatalogoServicoFormModal({ open, onOpenChange, servico }: Props)
       setValor(servico?.valor_mao_obra ? String(servico.valor_mao_obra) : "");
       setTempo(servico?.tempo_estimado_minutos ? String(servico.tempo_estimado_minutos) : "");
       setDescricao(servico?.descricao || "");
+      setHydrated(true);
+    } else {
+      setHydrated(false);
     }
   }, [open, servico]);
 
   const loading = createServico.isPending || updateServico.isPending;
+
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: { nome, tipoVeiculo, categoria, valor, tempo, descricao },
+    onOpenChange,
+    // Só depois que o useEffect de hidratação rodou — senão o snapshot pega os
+    // campos vazios do 1º render e o form nasce sujo em modo edição.
+    snapshotReady: hydrated,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,7 +166,7 @@ export function CatalogoServicoFormModal({ open, onOpenChange, servico }: Props)
       </div>
 
       <div className="flex gap-2 pt-2">
-        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1 h-11">
+        <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} className="flex-1 h-11">
           Cancelar
         </Button>
         <Button type="submit" disabled={loading} className="flex-1 h-11">
@@ -165,27 +185,45 @@ export function CatalogoServicoFormModal({ open, onOpenChange, servico }: Props)
     </div>
   );
 
+  const CloseConfirm = (
+    <ConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title="Sair sem salvar?"
+      description="Você alterou os dados do serviço e não salvou. As alterações serão descartadas."
+      confirmText="Descartar"
+      cancelText="Continuar editando"
+      onConfirm={confirmClose}
+    />
+  );
+
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="max-h-[90dvh]">
-          <DrawerHeader className="text-left">
-            <DrawerTitle>{Header}</DrawerTitle>
-          </DrawerHeader>
-          <div className="overflow-y-auto">{FormBody}</div>
-        </DrawerContent>
-      </Drawer>
+      <>
+        <Drawer open={open} onOpenChange={handleOpenChange}>
+          <DrawerContent className="max-h-[90dvh]">
+            <DrawerHeader className="text-left">
+              <DrawerTitle>{Header}</DrawerTitle>
+            </DrawerHeader>
+            <div className="overflow-y-auto">{FormBody}</div>
+          </DrawerContent>
+        </Drawer>
+        {CloseConfirm}
+      </>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{Header}</DialogTitle>
-        </DialogHeader>
-        {FormBody}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{Header}</DialogTitle>
+          </DialogHeader>
+          {FormBody}
+        </DialogContent>
+      </Dialog>
+      {CloseConfirm}
+    </>
   );
 }

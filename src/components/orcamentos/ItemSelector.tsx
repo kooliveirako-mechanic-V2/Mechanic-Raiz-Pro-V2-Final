@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,9 @@ import { Search, Package, Wrench, Plus, Minus, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useOficinaLabels } from "@/hooks/useOficinaLabels";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { markChildModalOpen, markChildModalClosed } from "@/lib/childModalLock";
 
 interface ItemSelectorProps {
   open: boolean;
@@ -101,12 +104,42 @@ export function ItemSelector({ open, onOpenChange, onAddItem }: ItemSelectorProp
     setValorMaoObra("");
   };
 
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    // tipo/quantidade têm default mas são escolha real; ficam na comparação.
+    // search é filtro de busca (volátil), não dado do usuário.
+    data: { tipo, selectedItem, quantidade, valorUnitario, custoUnitario, nomeManual, valorMaoObra, search },
+    onOpenChange,
+    onReset: resetForm,
+    ignoreKeys: ["search"],
+  });
+
+  // D2: este ItemSelector é Dialog em portal, filho do OrcamentoFormModal.
+  // Marca o childModalLock enquanto aberto para que o pai (Orcamento) não feche
+  // por eco de pointerdown/escape do Radix quando este fecha. Mesmo padrão do
+  // par ClienteForm→VeiculoForm. Sincroniza com `open` e libera no unmount.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      wasOpenRef.current = true;
+      markChildModalOpen();
+    } else if (!open && wasOpenRef.current) {
+      wasOpenRef.current = false;
+      markChildModalClosed();
+    }
+  }, [open]);
+  useEffect(() => {
+    return () => {
+      if (wasOpenRef.current) markChildModalClosed();
+    };
+  }, []);
+
   const isValid = tipo === "servico"
     ? nomeManual && valorUnitario
     : (selectedItem || nomeManual) && valorUnitario && quantidade > 0;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o); }}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -290,7 +323,7 @@ export function ItemSelector({ open, onOpenChange, onAddItem }: ItemSelectorProp
           )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="button" onClick={handleAddItem} disabled={!isValid}>
@@ -299,6 +332,15 @@ export function ItemSelector({ open, onOpenChange, onAddItem }: ItemSelectorProp
           </div>
         </div>
       </DialogContent>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Descartar item?"
+        description="Você preencheu dados deste item e não adicionou. As informações serão descartadas."
+        confirmText="Descartar"
+        cancelText="Continuar preenchendo"
+        onConfirm={confirmClose}
+      />
     </Dialog>
   );
 }

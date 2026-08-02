@@ -5,6 +5,8 @@ import { useClientes, ClienteInput } from "@/hooks/useClientes";
 import { toast } from "sonner";
 import { Upload, FileSpreadsheet, Download, Loader2, CheckCircle2, AlertCircle, X, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ImportClientesCSVModalProps {
   open: boolean;
@@ -177,13 +179,25 @@ export function ImportClientesCSVModal({ open, onOpenChange }: ImportClientesCSV
     setStep("done");
   };
 
-  const handleClose = () => {
+  const resetImport = () => {
     setParsedItems([]);
     setStep("upload");
     setImportProgress(0);
     setImportResults({ success: 0, failed: 0 });
-    onOpenChange(false);
   };
+
+  // Confirm-only, sem useAutoSave: JSON.stringify(File) vira {}, então prometer
+  // rascunho aqui seria mentira. `enabled` sobre step observável, nunca isDirty
+  // sobre File: só confirma em "preview" (CSV parseado, em revisão).
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: { parsedItems },
+    onOpenChange,
+    onReset: resetImport,
+    enabled: step === "preview",
+  });
+
+  const handleClose = () => handleOpenChange(false);
 
   const removeItem = (index: number) => {
     setParsedItems(prev => prev.filter((_, i) => i !== index));
@@ -335,6 +349,15 @@ export function ImportClientesCSVModal({ open, onOpenChange }: ImportClientesCSV
           </div>
         )}
       </DialogContent>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Descartar importação?"
+        description="Você carregou uma planilha de clientes e ainda não importou. Os dados revisados serão descartados."
+        confirmText="Descartar"
+        cancelText="Continuar importação"
+        onConfirm={confirmClose}
+      />
     </Dialog>
   );
 }

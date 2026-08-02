@@ -3,6 +3,8 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { setSentryUser, clearSentryUser } from "@/lib/sentry";
 import { getBaseUrl } from "@/utils/url";
+import { clearAllDrafts } from "@/hooks/useAutoSave";
+import { clearAllFormDrafts } from "@/lib/formGuard";
 
 interface AuthContextType {
   user: User | null;
@@ -68,6 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const initializedRef = React.useRef(false);
+  // Id do usuário da sessão anterior — usado para detectar TROCA DE CONTA no mesmo
+  // dispositivo (caminho separado do signOut). Ver o bloco em onAuthStateChange.
+  const lastUserIdRef = React.useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -91,6 +96,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (_event, currentSession) => {
         if (!initializedRef.current) return;
         if (!mounted) return;
+
+        // TROCA DE CONTA NO MESMO DISPOSITIVO — caminho SEPARADO do signOut.
+        // Cenário real: dois sócios usando o mesmo celular da oficina. Se o id do
+        // usuário mudou sem passar pelo signOut, o rascunho do anterior (valor,
+        // fornecedor, observações contábeis) seria oferecido ao novo pelo
+        // DraftPromptDialog. O signOut já limpa (linhas ~185); este ramo não
+        // limpava — vazamento vivo pelo caminho mais comum.
+        const previousUserId = lastUserIdRef.current;
+        const nextUserId = currentSession?.user?.id ?? null;
+        if (previousUserId && nextUserId && previousUserId !== nextUserId) {
+          try {
+            clearAllDrafts();      // prefixo mechanic_draft_ (useAutoSave)
+            clearAllFormDrafts();  // prefixo form_draft_     (formGuard)
+            console.warn("[Auth] Troca de conta detectada: rascunhos do usuário anterior apagados.");
+          } catch (e) {
+            console.warn("[Auth] draft cleanup (troca de conta) warn:", e);
+          }
+        }
+        lastUserIdRef.current = nextUserId;
+
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         setLoading(false);
@@ -118,6 +143,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         startupReleased = true;
         setSession(existingSession);
         setUser(existingSession?.user ?? null);
+        // Semeia o baseline de troca-de-conta: sem isso, a 1a troca após um
+        // startup com sessão em cache não teria id anterior para comparar.
+        lastUserIdRef.current = existingSession?.user?.id ?? null;
         initializedRef.current = true;
         setLoading(false);
       },
@@ -174,6 +202,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // Rascunhos PRIMEIRO, isolados. É o dado mais sensível (vaza entre contas no
+    // PC do balcão) e não pode depender do resto do signOut terminar bem. Se o
+    // bloco de limpeza abaixo lançar (localStorage bloqueado, etc.), a limpeza de
+    // rascunho já aconteceu. Cada módulo expõe a própria função — terceiro
+    // prefixo fica coberto por construção, não por lembrança.
+    try {
+      clearAllDrafts();      // prefixo mechanic_draft_ (useAutoSave)
+      clearAllFormDrafts();  // prefixo form_draft_     (formGuard)
+    } catch (e) {
+      console.warn("[Auth] draft cleanup warn:", e);
+    }
+
     try {
       await supabase.auth.signOut();
     } catch (e) {

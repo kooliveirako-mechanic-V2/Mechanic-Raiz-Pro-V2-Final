@@ -23,6 +23,7 @@ import { logBusinessEvent } from "@/lib/errorHandling";
 import { handleFormKeyDown } from "@/lib/formGuard";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { DraftPromptDialog } from "@/components/DraftPromptDialog";
+import { isChildModalActive } from "@/lib/childModalLock";
 
 // Schema de validação
 const clienteSchema = z.object({
@@ -89,6 +90,13 @@ export function ClienteFormModal({ open, onOpenChange, cliente, initialTab, onNo
   // Vehicle modal state
   const [veiculoModalOpen, setVeiculoModalOpen] = useState(false);
   const [veiculoParaEditar, setVeiculoParaEditar] = useState<Veiculo | null>(null);
+
+  // O VeiculoFormModal é filho deste modal. Enquanto ele está aberto — e durante
+  // o eco de 500 ms após fechar — ignora o fechamento propagado pelo Radix.
+  const handleParentOpenChange = useCallback((nextOpen: boolean) => {
+    if (!nextOpen && isChildModalActive()) return;
+    onOpenChange(nextOpen);
+  }, [onOpenChange]);
   
   // Get vehicles for this client when editing
   const veiculosDoCliente = cliente 
@@ -681,7 +689,7 @@ export function ClienteFormModal({ open, onOpenChange, cliente, initialTab, onNo
     const formId = isEditing ? "cliente-edit-form" : "cliente-new-form";
     return (
       <>
-        <Drawer open={open} onOpenChange={onOpenChange}>
+        <Drawer open={open} onOpenChange={handleParentOpenChange}>
           <DrawerContent className="px-4 pb-0 max-h-[90dvh]">
             {/* Header with inline Save button */}
             <DrawerHeader className="text-left px-0 flex-shrink-0 flex items-center justify-between">
@@ -768,7 +776,7 @@ export function ClienteFormModal({ open, onOpenChange, cliente, initialTab, onNo
   // ═══════════ DESKTOP: DIALOG ═══════════
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleParentOpenChange}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col bg-card border-border shadow-xl">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
@@ -808,6 +816,7 @@ export function ClienteFormModal({ open, onOpenChange, cliente, initialTab, onNo
           onOpenChange={setVeiculoModalOpen}
           veiculo={veiculoParaEditar}
           clienteIdPadrao={cliente.id}
+          registerAsChild
         />
       )}
     </>

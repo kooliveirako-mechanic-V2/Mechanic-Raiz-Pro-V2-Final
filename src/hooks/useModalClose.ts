@@ -1,0 +1,302 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+/**
+ * Fechamento de modal com confirmação quando o formulário está SUJO.
+ *
+ * Substitui o padrão `onOpenChange={onOpenChange}` (repasse direto ao pai), que
+ * fecha o modal em silêncio e descarta o que o usuário digitou. Ver
+ * docs/AUDITORIA-MODAIS-2026.md §0 e §7.1.
+ *
+ * O MESMO `handleOpenChange` deve ir no branch mobile (Drawer) E no desktop
+ * (Dialog). É isso que impede a assimetria de comportamento entre os dois —
+ * por construção, não por disciplina.
+ *
+ * ---------------------------------------------------------------------------
+ * DETECÇÃO DE SUJO: SNAPSHOT, não campo-a-campo
+ * ---------------------------------------------------------------------------
+ * Um snapshot do `data` é capturado quando o modal abre; ao fechar, compara-se o
+ * `data` atual contra ele. Só pergunta se mudou de fato.
+ *
+ * As 3 condições obrigatórias contra FALSO-SUJO (um aviso que aparece sempre é
+ * um aviso que o usuário aprende a dispensar sem ler — pior que não ter aviso):
+ *
+ *   1. O snapshot é tirado DEPOIS que os dados de edição carregam. Use
+ *      `snapshotReady` para segurar a captura enquanto o fetch não voltou.
+ *      Sem isso, todo modal de edição abre "sujo" (snapshot vazio × dados
+ *      preenchidos) e pergunta a quem só abriu e fechou.
+ *   2. Campos voláteis ficam FORA da comparação, via `ignoreKeys`: timestamps,
+ *      IDs gerados, flags de UI, defaults preenchidos na montagem e valores
+ *      auto-preenchidos por seleção (ex.: veículo que muda ao escolher cliente).
+ *   3. `""`, `null` e `undefined` são equivalentes. Campo que nasce `undefined`
+ *      e o React normaliza para `""` produziria sujeira falsa.
+ *
+ * ---------------------------------------------------------------------------
+ * ⚠️ `onReset` NÃO PODE CHAMAR `onOpenChange(true)`
+ * ---------------------------------------------------------------------------
+ * `onReset` roda no caminho de fechamento. Se ele reabrir o modal, o próximo
+ * fechamento cai no mesmo caminho e o ciclo não termina. Use-o apenas para
+ * limpar estado local (campos, arquivo selecionado, passo do wizard).
+ *
+ * ---------------------------------------------------------------------------
+ * LIMITE DE ESCOPO — o que este hook NÃO cobre (F2/F3 do relatório adversarial)
+ * ---------------------------------------------------------------------------
+ * Este hook protege as saídas DECLARATIVAS do modal: Cancelar, ESC, clique no
+ * overlay, botão X, swipe — tudo que passa pelo `onOpenChange` do Radix. Ele
+ * NÃO cobre:
+ *   - Desmontagem por troca de rota (o pai some sem chamar onOpenChange). A
+ *     mitigação é o flush no unmount do useAutoSave — logo, modal SEM autosave
+ *     perde o dado nesse caso. TODO: avaliar autosave para os modais sem ele
+ *     (Security, Account, Notifications, Agendamento, DadosFiscais, CatalogoBase,
+ *     Estoque-edição). Decisão do produto pendente.
+ *   - navigate()/history.back programático no meio do form (ver F3).
+ * `exits_unguarded=0` mede só o primeiro grupo, não estes.
+ *
+ * ---------------------------------------------------------------------------
+ * REGRA DA COPY DE SAÍDA (o ConfirmDialog que este hook governa)
+ * ---------------------------------------------------------------------------
+ * A fonte da verdade do `confirmText` é o DESTINO DO DADO, não a tela:
+ *   confirmText="Sair"      → o dado SOBREVIVE (autosave ativo + DraftPromptDialog
+ *                             reoferece na reabertura). Descrição diz onde ele fica.
+ *   confirmText="Descartar" → o dado SE PERDE (sem autosave neste modo).
+ * Modal dual-mode (ex.: criação com autosave vs. edição sem): derive a copy do
+ * modo, NUNCA fixe uma das duas — senão o botão mente em um dos modos.
+ */
+
+interface UseModalCloseOptions<T extends Record<string, unknown>> {
+  /** Estado atual do modal (vem do pai). */
+  open: boolean;
+  /** Objeto de dados do formulário — o mesmo passado ao `useAutoSave`. */
+  data: T;
+  /** Callback do pai para abrir/fechar. */
+  onOpenChange: (open: boolean) => void;
+  /** Limpa o estado local. NÃO pode chamar `onOpenChange(true)`. */
+  onReset?: () => void;
+  /**
+   * Condição 2 — chaves voláteis excluídas da comparação.
+   * Tipado como `(keyof T)[]`: chave inexistente é erro de COMPILAÇÃO.
+   * Em runtime há uma checagem extra (ver `invalidIgnoreKeys` abaixo) para o
+   * caso de `T` frouxo (`Record<string, unknown>`, `any`) onde o compilador
+   * não consegue barrar.
+   */
+  ignoreKeys?: (keyof T)[];
+  /**
+   * Condição 1 — só captura o snapshot quando os dados já carregaram.
+   * Default `true` (formulário de criação, sem fetch).
+   */
+  snapshotReady?: boolean;
+  /**
+   * `false` desliga a confirmação e o modal fecha direto. Usado quando ainda
+   * não há nada a perder — ex.: modal de importação recém-aberto, sem arquivo
+   * selecionado nem colunas mapeadas.
+   */
+  enabled?: boolean;
+}
+
+interface UseModalCloseResult {
+  /** Vai no `onOpenChange` do Drawer E do Dialog. */
+  handleOpenChange: (open: boolean) => void;
+  /** Controla o `ConfirmDialog` de "sair sem salvar?". */
+  confirmOpen: boolean;
+  setConfirmOpen: (v: boolean) => void;
+  /** Confirma a saída: reseta e fecha. */
+  confirmClose: () => void;
+  /** `true` se o `data` divergiu do snapshot. */
+  isDirty: boolean;
+}
+
+/** Condição 3: `""`, `null` e `undefined` contam como o mesmo valor. */
+function isBlank(v: unknown): boolean {
+  return v === "" || v === null || v === undefined;
+}
+
+/**
+ * Igualdade estrutural com as regras do falso-sujo. Arrays e objetos são
+ * comparados recursivamente — um item adicionado à lista conta como sujo.
+ *
+ * Set/Map/Date têm tratamento próprio: cair no ramo genérico de `Object.keys()`
+ * retornaria `[]` para os três (falso-NEGATIVO silencioso — dois Set diferentes
+ * seriam "iguais" e o aviso nunca dispararia). Seleção múltipla via Set é padrão
+ * comum (importação, seleção de itens, filtros), então o suporte vive no
+ * comparador, não em cada formulário.
+ *
+ * Assume estrutura ACÍCLICA — dados de formulário são planos; não há proteção
+ * contra referência cíclica.
+ */
+export function isEqualForDirty(a: unknown, b: unknown): boolean {
+  try {
+    return compareForDirty(a, b);
+  } catch {
+    // Fallback SEGURO: na dúvida, considera sujo (retorna "diferente") para o
+    // modal PERGUNTAR em vez de fechar calado. Um aviso a mais é ruído; um
+    // fechamento silencioso é perda de trabalho. Cobre objeto profundo
+    // mal-formado, getter que lança, proxy hostil, recursão excedida.
+    return false;
+  }
+}
+
+function compareForDirty(a: unknown, b: unknown): boolean {
+  if (isBlank(a) && isBlank(b)) return true;
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+
+  // Date — comparar pelo timestamp, senão Object.keys() = []
+  if (a instanceof Date || b instanceof Date) {
+    if (!(a instanceof Date) || !(b instanceof Date)) return false;
+    return a.getTime() === b.getTime();
+  }
+
+  // Set — ordem não importa: mesmo tamanho e todo elemento de `a` está em `b`
+  if (a instanceof Set || b instanceof Set) {
+    if (!(a instanceof Set) || !(b instanceof Set)) return false;
+    if (a.size !== b.size) return false;
+    for (const v of a) {
+      if (!b.has(v)) return false;
+    }
+    return true;
+  }
+
+  // Map — mesmo tamanho e cada chave com valor recursivamente igual
+  if (a instanceof Map || b instanceof Map) {
+    if (!(a instanceof Map) || !(b instanceof Map)) return false;
+    if (a.size !== b.size) return false;
+    for (const [k, v] of a) {
+      if (!b.has(k) || !isEqualForDirty(v, b.get(k))) return false;
+    }
+    return true;
+  }
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((item, i) => isEqualForDirty(item, b[i]));
+  }
+
+  if (typeof a === "object" && typeof b === "object" && a !== null && b !== null) {
+    const ka = Object.keys(a as Record<string, unknown>);
+    const kb = Object.keys(b as Record<string, unknown>);
+    const keys = new Set([...ka, ...kb]);
+    for (const k of keys) {
+      if (
+        !isEqualForDirty(
+          (a as Record<string, unknown>)[k],
+          (b as Record<string, unknown>)[k]
+        )
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  return false;
+}
+
+/** Remove as chaves voláteis antes de comparar (condição 2). */
+function stripIgnored<T extends Record<string, unknown>>(
+  data: T,
+  ignoreKeys: (keyof T)[]
+): Partial<T> {
+  if (ignoreKeys.length === 0) return data;
+  const out: Partial<T> = {};
+  for (const k of Object.keys(data) as (keyof T)[]) {
+    if (!ignoreKeys.includes(k)) out[k] = data[k];
+  }
+  return out;
+}
+
+export function useModalClose<T extends Record<string, unknown>>({
+  open,
+  data,
+  onOpenChange,
+  onReset,
+  ignoreKeys = [],
+  snapshotReady = true,
+  enabled = true,
+}: UseModalCloseOptions<T>): UseModalCloseResult {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const snapshotRef = useRef<Partial<T> | null>(null);
+
+  // Refs para não recriar handlers a cada tecla digitada.
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
+  const ignoreRef = useRef(ignoreKeys);
+  ignoreRef.current = ignoreKeys;
+
+  /**
+   * Reforço de runtime para `ignoreKeys`. O tipo `(keyof T)[]` já barra chave
+   * inexistente em compilação, mas quando `T` é frouxo (ou a lista vem de fonte
+   * dinâmica) o compilador não ajuda — então avisa em dev.
+   */
+  const invalidIgnoreKeys = useMemo(() => {
+    if (!open) return [];
+    const present = new Set(Object.keys(data));
+    return ignoreKeys.filter((k) => !present.has(String(k)));
+  }, [open, data, ignoreKeys]);
+
+  useEffect(() => {
+    if (invalidIgnoreKeys.length > 0 && import.meta.env.DEV) {
+      console.warn(
+        "[useModalClose] ignoreKeys inexistentes em `data`:",
+        invalidIgnoreKeys.map(String).join(", "),
+        "— chave errada não exclui nada e pode causar falso-sujo."
+      );
+    }
+  }, [invalidIgnoreKeys]);
+
+  // Condição 1: captura só quando aberto E com os dados já carregados.
+  // O caller garante, via `snapshotReady`, que a hidratação já aconteceu — para
+  // form que hidrata por useEffect, snapshotReady deve virar true SÓ depois.
+  useEffect(() => {
+    if (!open) {
+      snapshotRef.current = null;
+      return;
+    }
+    if (!snapshotReady) return;
+    if (snapshotRef.current !== null) return; // já capturado nesta abertura
+    snapshotRef.current = stripIgnored(dataRef.current, ignoreRef.current);
+  }, [open, snapshotReady]);
+
+  const isDirty = useMemo(() => {
+    if (!open || !enabled) return false;
+    const snap = snapshotRef.current;
+    if (snap === null) return false; // sem snapshot ainda → nunca sujo
+    return !isEqualForDirty(stripIgnored(data, ignoreKeys), snap);
+  }, [open, enabled, data, ignoreKeys]);
+
+  const closeNow = useCallback(() => {
+    snapshotRef.current = null;
+    onReset?.();
+    onOpenChange(false);
+  }, [onReset, onOpenChange]);
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (next) {
+        onOpenChange(true);
+        return;
+      }
+      if (!enabled) {
+        closeNow();
+        return;
+      }
+      const snap = snapshotRef.current;
+      const dirty =
+        snap !== null &&
+        !isEqualForDirty(stripIgnored(dataRef.current, ignoreRef.current), snap);
+
+      if (dirty) {
+        setConfirmOpen(true); // segura o fechamento até o usuário decidir
+        return;
+      }
+      closeNow();
+    },
+    [enabled, closeNow]
+  );
+
+  const confirmClose = useCallback(() => {
+    setConfirmOpen(false);
+    closeNow();
+  }, [closeNow]);
+
+  return { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose, isDirty };
+}

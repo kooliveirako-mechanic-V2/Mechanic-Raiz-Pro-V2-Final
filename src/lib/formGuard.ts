@@ -115,3 +115,27 @@ export function clearFormDraft(key: string): void {
     // ignorar
   }
 }
+
+/**
+ * Apaga TODOS os rascunhos deste módulo (prefixo `form_draft_`).
+ *
+ * Chamada no signOut: rascunho de formulário contém dado operacional do usuário
+ * e não pode sobreviver à troca de conta num dispositivo compartilhado (PC do
+ * balcão da oficina). Ver também `clearAllDrafts()` em `useAutoSave.ts`, que faz
+ * o mesmo para o prefixo `mechanic_draft_`.
+ *
+ * Se um terceiro sistema de rascunho for criado, ele deve expor a própria função
+ * de limpeza e ser chamado no signOut — em vez de duplicar prefixos literais lá.
+ */
+export function clearAllFormDrafts(): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("form_draft_")) keysToRemove.push(key);
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // ignorar
+  }
+}

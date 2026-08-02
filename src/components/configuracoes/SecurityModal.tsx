@@ -8,12 +8,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Shield, Eye, EyeOff, Lock } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useModalClose } from "@/hooks/useModalClose";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface SecurityModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+// G1 — PROIBIDO adicionar useAutoSave a este modal. Persistir senha (mesmo
+// rascunho) em localStorage é risco de vazamento maior que a perda de um form
+// de 2 campos. Decisão de produto explícita: Security NUNCA recebe autosave.
 export function SecurityModal({ open, onOpenChange }: SecurityModalProps) {
   const isMobile = useIsMobile();
 
@@ -23,9 +28,24 @@ export function SecurityModal({ open, onOpenChange }: SecurityModalProps) {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // SEGURANÇA: o snapshot NÃO retém o valor da senha — só flags "campo
+  // preenchido?". Basta para detectar sujo, sem manter texto sensível em
+  // snapshotRef nem arriscar vazamento em log/erro.
+  const { handleOpenChange, confirmOpen, setConfirmOpen, confirmClose } = useModalClose({
+    open,
+    data: { temNova: newPassword.length > 0, temConfirm: confirmPassword.length > 0 },
+    onOpenChange,
+    onReset: () => {
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+    },
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (newPassword.length < 6) {
       toast.error("A senha deve ter pelo menos 6 caracteres");
       return;
@@ -48,8 +68,9 @@ export function SecurityModal({ open, onOpenChange }: SecurityModalProps) {
       setNewPassword("");
       setConfirmPassword("");
       onOpenChange(false);
-    } catch (error: any) {
-      toast.error("Erro ao alterar senha", { description: error.message });
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : undefined;
+      toast.error("Erro ao alterar senha", { description });
     } finally {
       setLoading(false);
     }
@@ -113,8 +134,8 @@ export function SecurityModal({ open, onOpenChange }: SecurityModalProps) {
       <div className="flex gap-3 pt-4 pb-2">
         <Button 
           type="button" 
-          variant="outline" 
-          onClick={() => onOpenChange(false)} 
+          variant="outline"
+          onClick={() => handleOpenChange(false)}
           className="flex-1 h-12 text-base"
         >
           Cancelar
@@ -139,9 +160,22 @@ export function SecurityModal({ open, onOpenChange }: SecurityModalProps) {
     </div>
   );
 
+  const sairSemSalvar = (
+    <ConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title="Sair sem salvar?"
+      description="Você começou a alterar a senha e não concluiu. Os campos serão limpos."
+      confirmText="Descartar"
+      cancelText="Continuar editando"
+      onConfirm={confirmClose}
+    />
+  );
+
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <>
+      <Drawer open={open} onOpenChange={handleOpenChange}>
         <DrawerContent className="px-4 pb-6 max-h-[90dvh]">
           <DrawerHeader className="text-left px-0">
             <DrawerTitle className="flex items-center gap-2 text-lg">
@@ -153,11 +187,14 @@ export function SecurityModal({ open, onOpenChange }: SecurityModalProps) {
           </div>
         </DrawerContent>
       </Drawer>
+      {sairSemSalvar}
+      </>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -167,5 +204,7 @@ export function SecurityModal({ open, onOpenChange }: SecurityModalProps) {
         {FormContent}
       </DialogContent>
     </Dialog>
+    {sairSemSalvar}
+    </>
   );
 }
