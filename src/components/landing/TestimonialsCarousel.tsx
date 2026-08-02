@@ -1,3 +1,6 @@
+// INATIVO: requer depoimentos reais com autorização do cliente (nome/oficina/cidade).
+// Não renderizar — os dados atuais são placeholders fictícios e publicá-los seria
+// publicidade enganosa (CDC art. 37). Religar só com conteúdo verdadeiro autorizado.
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Quote, Star, Bike, Car } from "lucide-react";

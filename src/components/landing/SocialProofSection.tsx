@@ -1,3 +1,6 @@
+// INATIVO: requer logos e números reais com autorização das oficinas.
+// Não renderizar — os dados atuais são placeholders fictícios e publicá-los seria
+// publicidade enganosa (CDC art. 37). Religar só com conteúdo verdadeiro autorizado.
 import { motion } from "framer-motion";
 import { AnimatedCounter } from "./animations/AnimatedCounter";
 import { Wrench, Car, MapPin, Star, Bike, Settings, Cog, CircleDot, Gauge, Shield } from "lucide-react";

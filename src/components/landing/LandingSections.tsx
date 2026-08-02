@@ -28,6 +28,11 @@ import { Button } from "@/components/ui/button";
 import { StickyNavigation } from "./StickyNavigation";
 import { SectionTracker } from "./SectionTracker";
 import { PricingSection } from "./PricingSection";
+import { RevenueLossSimulator } from "./RevenueLossSimulator";
+import { BeforeAfterSlider } from "./BeforeAfterSlider";
+import { VideoDemoSection } from "./VideoDemoSection";
+import { DashboardShowcaseCarousel } from "./DashboardShowcaseCarousel";
+import { GuaranteeSection } from "./GuaranteeSection";
 import { trackContactAndOpenWpp } from "@/lib/oracleWpp";
 
 interface SectionProps {
@@ -196,6 +201,12 @@ export function LandingSections({
       </Section>
 
       {/* ═══════════════════════════════════════════════════════════
+          BLOCO 3.5 — VEJA O PRODUTO REAL (demo + telas do app)
+          ═══════════════════════════════════════════════════════════ */}
+      <VideoDemoSection />
+      <DashboardShowcaseCarousel />
+
+      {/* ═══════════════════════════════════════════════════════════
           BLOCO 4 — COMO FUNCIONA
           ═══════════════════════════════════════════════════════════ */}
       <Section className="bg-slate-50" id="como-funciona">
@@ -313,6 +324,25 @@ export function LandingSections({
           </div>
         </div>
       </Section>
+
+      {/* ═══════════════════════════════════════════════════════════
+          BLOCO 5.4 — ANTES / DEPOIS (ponte visual benefícios → dor)
+          ═══════════════════════════════════════════════════════════ */}
+      <Section className="bg-white">
+        <div className="container mx-auto px-4 sm:px-6 md:px-12">
+          <BeforeAfterSlider />
+        </div>
+      </Section>
+
+      {/* ═══════════════════════════════════════════════════════════
+          BLOCO 5.5 — SIMULADOR DE PERDA (dor concreta antes do preço)
+          ═══════════════════════════════════════════════════════════ */}
+      <RevenueLossSimulator onScrollToSignup={onScrollToSignup} />
+
+      {/* ═══════════════════════════════════════════════════════════
+          BLOCO 5.6 — GARANTIA (remove risco antes de ver o preço)
+          ═══════════════════════════════════════════════════════════ */}
+      <GuaranteeSection onScrollToSignup={onScrollToSignup} />
 
       {/* ═══════════════════════════════════════════════════════════
           SEÇÃO 6 — PLANOS E PREÇOS
