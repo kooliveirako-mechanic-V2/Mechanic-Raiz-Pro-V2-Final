@@ -49,13 +49,32 @@ const PROTEGIDOS = [
   "src/components/estoque/ImportCSVModal.tsx",
   "src/components/clientes/ImportContactsModal.tsx",
   "src/components/clientes/ImportClientesCSVModal.tsx",
+  // G2: modais com guard INLINE (guardedOpenChange / isChildCloseEcho) que antes
+  // ficavam fora da lista — agora entram na contagem de PROTEGIDOS.
+  "src/components/forms/OrcamentoFormModal.tsx",
+  "src/components/forms/OrdemServicoFormModal.tsx",
 ];
 
 const alvos = process.argv.slice(2).length ? process.argv.slice(2) : PROTEGIDOS;
 
-// Cada padrão é uma função linha->bool. Uma linha que cita handleOpenChange já
-// está guardada e não conta.
-const guarded = (line) => line.includes("handleOpenChange");
+// Cada padrão é uma função linha->bool. Uma linha que cita um guard reconhecido
+// já está protegida e não conta. G2: além do handleOpenChange (padrão puro do
+// useModalClose), reconhece o guard INLINE de modais com aninhamento —
+// guardedOpenChange (Orcamento) e isChildCloseEcho (OrdemServicoForm), que
+// interceptam o eco pai↔filho antes de fechar. shouldIgnoreParentClose é a
+// função pura por trás do guardedOpenChange.
+const GUARD_TOKENS = [
+  "handleOpenChange",
+  "guardedOpenChange",
+  "isChildCloseEcho",
+  "shouldIgnoreParentClose",
+  // Escritas que ALIMENTAM o eco (onOpenChange do modal-FILHO ServicoRapido):
+  // registram o fechamento para o isChildCloseEcho do pai. Não são saída do
+  // formulário-pai — são parte do próprio mecanismo de guard.
+  "servicoRapidoJustClosedRef",
+  "servicoRapidoOpen",
+];
+const guarded = (line) => GUARD_TOKENS.some((t) => line.includes(t));
 
 const patterns = {
   P1: (l) => /onOpenChange=\{onOpenChange\}/.test(l),
@@ -66,8 +85,13 @@ const patterns = {
   // (ex.: AlertDialog de exclusão), não do formulário — não perde dado de form.
   // Filtrar por "é AlertDialog?" quebraria no dia de um Dialog aninhado; por isso
   // o critério é o corpo do handler, não o componente.
-  P3: (l) => {
-    if (!/onOpenChange=\{\(/.test(l) || guarded(l)) return false;
+  // P3 recebe (linha, bloco) — `bloco` são as ~4 linhas seguintes, para cobrir
+  // arrows MULTI-LINHA cujo guard vive na linha de baixo:
+  //   onOpenChange={(isOpen) => {
+  //     if (!isOpen && (f.servicoRapidoOpen || isChildCloseEcho())) return;  <- guard
+  // Sem olhar o bloco, o gate marcaria a linha de abertura como furo (falso+).
+  P3: (l, bloco = "") => {
+    if (!/onOpenChange=\{\(/.test(l) || guarded(l) || guarded(bloco)) return false;
     // corpo que só limpa um id/seleção de confirmação => não é saída de formulário
     const confirmacaoAninhada = /=>\s*!?\w*\s*&&?\s*set\w*(Id|Confirm|Delete|ToRemove)?\(null\)/.test(l)
       || /=>\s*set(DeleteId|ConfirmOpen|ItemToRemove|MemberToRemove)\(/.test(l);
@@ -89,8 +113,11 @@ for (const f of alvos) {
   const c = { P1: 0, P2: 0, P3: 0, P4: 0, P5: 0 };
   const hits = [];
   lines.forEach((line, i) => {
+    // Bloco de lookahead: 4 linhas seguintes, para P3 detectar guard em arrow
+    // multi-linha (o guard costuma estar no primeiro `if` do corpo).
+    const bloco = lines.slice(i + 1, i + 5).join("\n");
     for (const [name, test] of Object.entries(patterns)) {
-      if (test(line)) {
+      if (test(line, bloco)) {
         c[name]++;
         hits.push(`${name} L${i + 1}: ${line.trim().slice(0, 70)}`);
       }
