@@ -58,6 +58,7 @@ describe("ciclo real — AgendamentoOnlineModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear(); // G1: modal agora usa useAutoSave — isola rascunhos entre casos
     onOpenChange = vi.fn();
   });
 
@@ -111,14 +112,17 @@ describe("ciclo real — AgendamentoOnlineModal", () => {
     expect(screen.getAllByDisplayValue("09:00").length).toBeGreaterThan(0);
   });
 
-  it("5. 'Descartar' fecha", async () => {
+  it("5. 'Sair' fecha (autosave → rascunho guardado, copy não é 'Descartar')", async () => {
+    // G1: com autosave, o dado é recuperável → confirmText é "Sair".
     render(<AgendamentoOnlineModal open onOpenChange={onOpenChange} />);
     await hidratado();
     fireEvent.change(screen.getByDisplayValue("minha-oficina"), { target: { value: "outra-oficina" } });
     fireEvent.click(screen.getByText("Cancelar"));
     await waitFor(() => screen.getByText("Sair sem salvar?"));
 
-    fireEvent.click(screen.getByText("Descartar"));
+    expect(screen.getByText(/rascunho fica guardado/i)).toBeInTheDocument();
+    expect(screen.queryByText("Descartar")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Sair"));
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });

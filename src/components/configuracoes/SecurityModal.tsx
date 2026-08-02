@@ -16,6 +16,9 @@ interface SecurityModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+// G1 — PROIBIDO adicionar useAutoSave a este modal. Persistir senha (mesmo
+// rascunho) em localStorage é risco de vazamento maior que a perda de um form
+// de 2 campos. Decisão de produto explícita: Security NUNCA recebe autosave.
 export function SecurityModal({ open, onOpenChange }: SecurityModalProps) {
   const isMobile = useIsMobile();
 

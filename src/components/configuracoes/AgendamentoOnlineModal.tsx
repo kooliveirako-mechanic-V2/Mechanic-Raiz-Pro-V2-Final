@@ -13,6 +13,8 @@ import { useAgendamentoOnlineConfig, type DiaSemana, type HorariosSemana } from 
 import { useCatalogoServicos } from "@/hooks/useCatalogoServicos";
 import { useModalClose } from "@/hooks/useModalClose";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useAutoSave } from "@/hooks/useAutoSave";
+import { DraftPromptDialog } from "@/components/DraftPromptDialog";
 import { toast } from "sonner";
 
 interface Props {
@@ -100,6 +102,36 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
     snapshotReady: hydrated,
   });
 
+  // G1: autosave. É o único dos modais de config que recebe rede — há esforço
+  // real de preenchimento (horários por dia, serviços, mensagens). enabled só
+  // após hidratar (senão persiste defaults) e com o modal aberto. Key por
+  // oficina para não misturar rascunhos entre contas.
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
+  const applyDraft = (d: typeof formData) => {
+    setAtivo(d.ativo);
+    setSlug(d.slug);
+    setHorarios(d.horarios);
+    setCapacidade(d.capacidade);
+    setDuracao(d.duracao);
+    setDiasMax(d.diasMax);
+    setMostrarPrecos(d.mostrarPrecos);
+    setServicosPermitidos(d.servicosPermitidos);
+    setMsgConfirmacao(d.msgConfirmacao);
+    setMsgAprovacao(d.msgAprovacao);
+  };
+  const { hasDraft, lastSaved, restore, clearDraft } = useAutoSave({
+    key: `agendamento-online-${config?.oficina_id ?? "sem-oficina"}`,
+    data: formData,
+    enabled: open && hydrated,
+    interval: 1500,
+    onRestore: applyDraft,
+  });
+
+  // Oferece retomar rascunho quando abre e há um salvo.
+  useEffect(() => {
+    if (open && hydrated && hasDraft) setDraftPromptOpen(true);
+  }, [open, hydrated, hasDraft]);
+
   const handleSalvar = async () => {
     if (ativo && !slugValido) {
       toast.error("Slug inválido", { description: "Use 3-50 caracteres: letras minúsculas, números e hífens." });
@@ -117,6 +149,7 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
       agendamento_online_mensagem_confirmacao: msgConfirmacao,
       agendamento_online_mensagem_aprovacao: msgAprovacao,
     });
+    clearDraft(); // G1: salvou de verdade → rascunho não é mais necessário
   };
 
   const updateDia = (dia: DiaSemana, patch: Partial<HorariosSemana[DiaSemana]>) => {
@@ -301,10 +334,18 @@ export function AgendamentoOnlineModal({ open, onOpenChange }: Props) {
       open={confirmOpen}
       onOpenChange={setConfirmOpen}
       title="Sair sem salvar?"
-      description="Você alterou a configuração de agendamento e não salvou. As alterações serão descartadas."
-      confirmText="Descartar"
+      description="Você alterou a configuração de agendamento e não salvou. Seu rascunho fica guardado para você retomar depois."
+      confirmText="Sair"
       cancelText="Continuar editando"
       onConfirm={confirmClose}
+    />
+
+    <DraftPromptDialog
+      open={draftPromptOpen}
+      label="configuração de agendamento"
+      savedAt={lastSaved}
+      onResume={() => { restore(); setDraftPromptOpen(false); }}
+      onDiscard={() => { clearDraft(); setDraftPromptOpen(false); }}
     />
     </>
   );
