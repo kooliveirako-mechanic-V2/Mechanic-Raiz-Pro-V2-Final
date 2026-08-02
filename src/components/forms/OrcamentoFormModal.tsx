@@ -15,7 +15,7 @@ import { ItemSelector } from "@/components/orcamentos/ItemSelector";
 import { InlineItemForm, PendingItem } from "@/components/orcamentos/InlineItemForm";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useModalClose } from "@/hooks/useModalClose";
-import { isChildModalActive } from "@/lib/childModalLock";
+import { isChildModalActive, shouldIgnoreParentClose } from "@/lib/childModalLock";
 import { ClienteSelectWithCreate } from "./ClienteSelectWithCreate";
 import { VeiculoSelectWithCreate } from "./VeiculoSelectWithCreate";
 import { formatCurrency } from "@/lib/formatters";
@@ -360,7 +360,9 @@ export function OrcamentoFormModal({ open, onOpenChange, orcamento, initialClien
 
   const guardedOpenChange = (next: boolean) => {
     // D2: ignora o eco de fechamento propagado pelo ItemSelector recém-fechado.
-    if (!next && isChildModalActive()) return;
+    // Decisão em função pura (shouldIgnoreParentClose) — testável por mutação,
+    // já que o eco de portal não é reproduzível em jsdom.
+    if (shouldIgnoreParentClose(next, isChildModalActive())) return;
     handleOpenChange(next);
   };
 

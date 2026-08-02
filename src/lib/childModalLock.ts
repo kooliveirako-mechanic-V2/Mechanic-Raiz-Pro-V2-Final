@@ -33,6 +33,21 @@ export function isChildModalActive(): boolean {
 }
 
 /**
+ * Item D — decisão PURA de "o pai deve IGNORAR esta tentativa de fechamento?".
+ *
+ * Extraída porque o eco pai↔filho de Dialog em portal NÃO é reproduzível em
+ * jsdom (probe empírico: onOpenChange do pai é chamado 0x quando o filho fecha
+ * por Escape) e a guarda de sujo do pai mascara a de lock num teste de montagem.
+ * A lógica booleana vive aqui e é provada por mutação, como shouldBlockParentClose.
+ *
+ * Ignora apenas FECHAMENTOS (next === false) enquanto um modal-filho está ativo.
+ * Abrir (next === true) nunca é bloqueado.
+ */
+export function shouldIgnoreParentClose(next: boolean, childActive: boolean): boolean {
+  return !next && childActive;
+}
+
+/**
  * Item B — decisão PURA de "o pai deve bloquear o próprio fechamento?".
  *
  * Extraída para ser testável sem montar o OrdemServicoFormModal inteiro (reducer
