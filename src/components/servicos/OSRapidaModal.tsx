@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency, parseCurrency } from "@/lib/formatters";
 import { isChildModalActive } from "@/lib/childModalLock";
 import { tiposServicoCarro, tiposServicoMoto, tiposServicoAutoEletrica } from "@/components/forms/os/OSFormConstants";
+import { VoiceInputButton } from "@/components/servicos/VoiceInputButton";
 
 // OSCriada uses the same shape expected by openWhatsAppOS
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -678,7 +679,21 @@ export function OSRapidaModal({ open, onOpenChange }: OSRapidaModalProps) {
                   Voltar
                 </Button>
               </div>
-              
+
+              {/* TESTE (conta admin apenas) — ditado por voz nativo do navegador.
+                  Preenche o mesmo estado do input acima. Sem IA, sem custo.
+                  O próprio componente se esconde para outros usuários e onde
+                  o navegador não suporta. */}
+              <VoiceInputButton
+                onTranscript={(texto) => {
+                  if (!texto) return;
+                  setCustomServico(texto);
+                  setFieldErrors((prev) => {
+                    const { servico, ...rest } = prev;
+                    return rest;
+                  });
+                }}
+              />
             </div>
           )}
 
